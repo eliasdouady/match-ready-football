@@ -10,6 +10,17 @@ The project combines synthetic GPS/load data, individual baselines, transparent 
 
 ![Featured cover](assets/exports/05_featured_cover.png)
 
+## Live demo
+
+**Interactive dashboard:** https://match-ready-football.streamlit.app/
+
+Recommended first view:
+- **Monitoring week:** Week 5
+- **Player:** Player 18 · Winger
+
+This view highlights the main project storyline: overall training volume remains present while sprint-specific exposure is substantially reduced.
+
+
 ## Why this project
 
 Football performance data is easy to turn into dashboards and much harder to turn into interpretable decisions. Match Ready? was designed around three questions:
