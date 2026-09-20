@@ -1,0 +1,14 @@
+MATCH READY? — PREMIUM V2
+
+Main changes from the previous working version:
+
+1. Story week moved from Week 6 to Week 5.
+2. Monitoring logic refined to reduce noisy alerts.
+3. Exposure Index replaced in the UI by Preparation Alignment.
+4. Training context added.
+5. Squad Overview upgraded with Actionable Flags and a Staff Priority Queue.
+6. Player Analysis upgraded with a player reference card and training-to-match exposure.
+7. Exposure Map upgraded with Preparation Alignment sizing and context.
+8. Methodology expanded with assumptions and limitations.
+9. LinkedIn-ready visual added: assets/exports/06_training_to_match_demand.png
+10. GitHub / deployment preparation completed.
