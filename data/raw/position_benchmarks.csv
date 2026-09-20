@@ -1,0 +1,6 @@
+position,typical_match_total_distance_m,typical_match_hsr_m,typical_match_sprint_distance_m,typical_match_accelerations,typical_match_decelerations,typical_vmax_kmh
+CB,9800,430,90,34,32,32.0
+FB,10800,820,250,45,44,34.0
+CM,11200,650,140,47,46,32.5
+W,10400,920,330,48,46,35.0
+ST,9900,750,280,43,40,34.4
