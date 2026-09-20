@@ -1,0 +1,23 @@
+MATCH READY? — RUN INSTRUCTIONS
+
+1. Open a terminal in this project folder.
+
+2. Install dependencies:
+   pip install -r requirements.txt
+
+3. Launch the dashboard:
+   streamlit run dashboard/app.py
+
+OPTIONAL — regenerate everything from the synthetic-data source:
+   python src/data_generation.py
+   python src/metrics.py
+   python src/visuals.py
+
+Recommended first view:
+- Monitoring week: Week 5
+- Player: Player 18 · W
+
+Why Week 5?
+- P18 shows an unexpected speed-underexposure pattern.
+- P22 is also underexposed numerically, but the reduction is planned within a reintegration scenario.
+- This contrast demonstrates why staff context matters.
