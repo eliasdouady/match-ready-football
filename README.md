@@ -36,6 +36,8 @@ Goalkeepers are intentionally excluded because their physical demands require a 
 
 ## Designed scenarios
 
+Three specific storylines make the dataset useful to explore.
+
 ### P18 — Winger: unexpected speed underexposure
 
 Training volume remains broadly present, while sprint distance and near-max-speed exposure fall substantially.
@@ -50,7 +52,7 @@ Week 7 contains a deliberate load increase without the same speed-underexposure 
 
 Reduced exposure in weeks 4–5 is intentional within a return-to-performance scenario. The numerical flag remains visible, but the interface explicitly shows that the reduction is planned.
 
-**Monitoring data should support staff judgement, not replace it.**
+This is an important design principle of the project: **monitoring data should support staff judgement, not replace it.**
 
 ## Monitoring logic
 
