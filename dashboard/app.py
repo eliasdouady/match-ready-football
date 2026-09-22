@@ -54,6 +54,13 @@ STATUS_COLORS = {
     "Baseline": "#718096",
 }
 
+STATUS_LABELS = {
+    "Ready": "Aligned",
+    "Monitor": "Review",
+    "Underexposed": "Low speed exposure",
+    "Baseline": "Baseline",
+}
+
 POSITION_LABELS = {
     "CB": "Centre Back",
     "FB": "Full Back",
@@ -272,9 +279,10 @@ def apply_plot_style(fig, height=None):
 
 def status_badge(status):
     color = STATUS_COLORS.get(status, MUTED)
+    label = STATUS_LABELS.get(status, str(status))
     return (
         f'<span class="mr-badge" style="background:{color}18;color:{color};'
-        f'border:1px solid {color}55;">{str(status).upper()}</span>'
+        f'border:1px solid {color}55;">{label.upper()}</span>'
     )
 
 
@@ -382,10 +390,9 @@ def plain_language_takeaway(row):
 
     if row["monitoring_status"] == "Underexposed":
         return (
-            f"The player completed {load:.0f}% of their usual overall training load, "
-            f"but only {sprint:.0f}% of their usual sprint exposure and {hsr:.0f}% of their usual "
-            f"high-speed running. Peak speed reached {peak:.0f}% of Vmax. "
-            "In plain English: the player trained enough overall, but not with the same high-speed stimulus."
+            f"Overall work was normal-to-high ({load:.0f}% of usual), but the high-speed stimulus was much lower: "
+            f"{sprint:.0f}% of usual sprint exposure, {hsr:.0f}% of usual high-speed running and "
+            f"{peak:.0f}% of Vmax. Key point: enough total work, but much less speed-specific work."
         )
 
     if row["monitoring_status"] == "Monitor":
@@ -509,7 +516,7 @@ if page == "Squad Overview":
         f"Week {selected_week} · start with the priority queue, then use the table for detail",
     )
     st.caption(
-        "Ready = broadly aligned · Monitor = review the context · Underexposed = one or more speed-related exposures are clearly reduced."
+        "Aligned = no current flag · Review = context needed · Low speed exposure = sprint, HSR or peak-speed work is clearly lower than usual."
     )
 
     counts = week_df["monitoring_status"].value_counts()
@@ -523,17 +530,17 @@ if page == "Squad Overview":
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        kpi_card("READY", ready, f"{ready / total * 100:.0f}% of squad", READY)
+        kpi_card("ALIGNED", ready, f"{ready / total * 100:.0f}% of squad", READY)
     with c2:
-        kpi_card("MONITOR", monitor, "Context flag · requires interpretation", MONITOR)
+        kpi_card("REVIEW", monitor, "Needs staff context", MONITOR)
     with c3:
-        kpi_card("UNDEREXPOSED", under, "Exposure profile materially reduced", UNDER)
+        kpi_card("LOW SPEED EXPOSURE", under, "Speed stimulus clearly reduced", UNDER)
     with c4:
-        kpi_card("ACTIONABLE FLAGS", actionable, "Excludes planned reduced exposure", ACCENT)
+        kpi_card("NEEDS REVIEW", actionable, "Unexpected flags only", ACCENT)
 
     section_header(
-        "Staff Priority Queue",
-        "Unexpected flags first; planned rehabilitation / reintegration is kept visible but contextualised",
+        "Who needs attention?",
+        "Unexpected flags first. Planned rehabilitation or reintegration remains visible, but is not treated as urgent.",
     )
 
     flagged = week_df[week_df["monitoring_status"] != "Ready"].copy()
@@ -548,9 +555,9 @@ if page == "Squad Overview":
             with col:
                 color = STATUS_COLORS.get(row["monitoring_status"], MUTED)
                 context = (
-                    "PLANNED CONTEXT"
+                    "PLANNED REDUCTION"
                     if bool(row["planned_reduction"])
-                    else "STAFF ATTENTION"
+                    else "REVIEW FIRST"
                 )
                 render_html(
                     f"""
@@ -614,6 +621,7 @@ if page == "Squad Overview":
                 "monitoring_status": "Status",
             }
         )
+        table["Status"] = table["Status"].map(STATUS_LABELS).fillna(table["Status"])
         table = table[
             ["Player", "Pos", "Context", "HSR %", "Sprint %", "% Vmax", "Load %", "Alignment", "Status"]
         ]
@@ -636,10 +644,11 @@ if page == "Squad Overview":
         section_header("Status Distribution", "Current monitoring classification")
         status_counts = week_df["monitoring_status"].value_counts().reset_index()
         status_counts.columns = ["Status", "Players"]
+        status_counts["Display"] = status_counts["Status"].map(STATUS_LABELS).fillna(status_counts["Status"])
 
         fig = go.Figure(
             go.Pie(
-                labels=status_counts["Status"],
+                labels=status_counts["Display"],
                 values=status_counts["Players"],
                 hole=0.72,
                 marker=dict(
@@ -759,8 +768,8 @@ elif page == "Player Analysis":
                 <div class="mr-player-pos">{position_full}</div>
                 {status_badge(row['monitoring_status'])} &nbsp; {context_badge(row['training_context'])}
                 <div style="margin-top:18px;color:{MUTED};font-size:11px;line-height:1.55;">
-                    <b style="color:{TEXT};">How to read the status</b><br>
-                    Ready = broadly aligned · Monitor = review the context · Underexposed = one or more
+                    <b style="color:{TEXT};">Status meaning</b><br>
+                    Aligned = no current flag · Review = context needed · Low speed exposure = one or more
                     speed-related exposures are clearly lower than usual.
                 </div>
             </div>
@@ -771,18 +780,13 @@ elif page == "Player Analysis":
         render_html(
             f"""
             <div class="mr-insight" style="border-left-color:{STATUS_COLORS.get(row['monitoring_status'], ACCENT)};">
-                <div class="mr-insight-title">ONE-MINUTE TAKEAWAY</div>
-                <div style="font-size:18px;line-height:1.55;font-weight:650;">
+                <div class="mr-insight-title">QUICK TAKEAWAY</div>
+                <div style="font-size:18px;line-height:1.5;font-weight:650;">
                     {plain_language_takeaway(row)}
                 </div>
-            </div>
-            """
-        )
-        render_html(
-            f"""
-            <div class="mr-soft-panel">
-                <b style="color:{TEXT};">Staff context</b><br><br>
-                <span style="color:{MUTED};font-size:12px;line-height:1.5;">{row['context_note']}</span>
+                <div style="margin-top:14px;padding-top:12px;border-top:1px solid {GRID};color:{MUTED};font-size:11px;">
+                    <b style="color:{TEXT};">Context:</b> {row['context_note']}
+                </div>
             </div>
             """
         )
@@ -861,25 +865,25 @@ elif page == "Player Analysis":
     )
 
     section_header(
-        "3 · How does that compare with real match demands?",
-        "External context from SkillCorner A-League 2024/25 data. These values are references, not targets.",
+        "3 · What does real match data add?",
+        "SkillCorner A-League 2024/25 gives an external positional reference. It adds context; it does not define a training target.",
     )
 
     real1, real2 = st.columns(2)
     with real1:
         direction = "above" if hsr_real_delta >= 0 else "below"
         kpi_card(
-            "HIGH-SPEED RUNNING VS ROLE MEDIAN",
-            f"{row['training_hsr_m']:.0f} m",
-            f"Real {position_full} P50: {real_hsr_p50:.0f} m · {abs(hsr_real_delta):.0f}% {direction}",
+            "HIGH-SPEED RUNNING",
+            f"{hsr_vs_real_p50 * 100:.0f}% of match P50",
+            f"{row['training_hsr_m']:.0f} m this week · real {position_full} P50: {real_hsr_p50:.0f} m",
             ACCENT,
         )
     with real2:
         direction = "above" if sprint_real_delta >= 0 else "below"
         kpi_card(
-            "SPRINT DISTANCE VS ROLE MEDIAN",
-            f"{row['training_sprint_m']:.0f} m",
-            f"Real {position_full} P50: {real_sprint_p50:.0f} m · {abs(sprint_real_delta):.0f}% {direction}",
+            "SPRINT DISTANCE",
+            f"{sprint_vs_real_p50 * 100:.0f}% of match P50",
+            f"{row['training_sprint_m']:.0f} m this week · real {position_full} P50: {real_sprint_p50:.0f} m",
             ACCENT,
         )
 
@@ -930,7 +934,7 @@ elif page == "Player Analysis":
         )
 
     fig.update_layout(
-        title="Blue diamond = this training week · green dot = real role median · grey band = P25–P90",
+        title="This training week vs real positional match reference",
         showlegend=False,
     )
     fig.update_xaxes(title="Metres")
@@ -938,10 +942,23 @@ elif page == "Player Analysis":
     apply_plot_style(fig, 300)
     st.plotly_chart(fig, use_container_width=True)
 
+    render_html(
+        f"""
+        <div class="mr-insight" style="border-left-color:{ACCENT};">
+            <div class="mr-insight-title">WHAT THE REAL DATA ADDS</div>
+            The week accumulated <b>{hsr_vs_real_p50 * 100:.0f}%</b> of the real {position_full.lower()} match P50 for HSR,
+            but only <b>{sprint_vs_real_p50 * 100:.0f}%</b> for sprint distance.
+            The mix is therefore uneven: plenty of high-speed running, but comparatively less sprinting.
+            Combined with the player's own sprint baseline ({row['sprint_vs_baseline'] * 100:.0f}%),
+            this supports the same conclusion from a second angle: the issue is the <b>type of speed stimulus</b>, not total work.
+        </div>
+        """
+    )
+
     st.caption(
         f"SkillCorner reference: {int(real_ref['n_players'])} eligible {position_full.lower()} player-position samples, "
         f"{int(real_ref['total_matches'])} matches represented. A full training week and one match are different exposure windows; "
-        "this comparison is used only to add real-world context."
+        "the comparison is descriptive and should not be read as a prescribed target."
     )
 
     with st.expander("What do these terms mean?"):
@@ -951,8 +968,8 @@ elif page == "Player Analysis":
             **HSR (high-speed running)** — running at high speed below the sprint threshold.  
             **Sprint exposure** — distance covered at sprint speed.  
             **Vmax** — the player's individual maximum speed.  
-            **P50** — the median value in the real positional reference; half the observations are below it and half above it.  
-            **P25–P90** — a wider reference range showing how much real positional demands vary.
+            **P50** — the median value in the real positional reference; half the player-position averages are below it and half above it.  
+            **P25–P90** — a wider reference range showing variation across real player-position averages.
             """
         )
 
