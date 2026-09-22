@@ -6,7 +6,7 @@ Match Ready? is a portfolio project that simulates a football performance-monito
 
 > Is the player's recent training exposure consistent with the physical demands we expect from them?
 
-The project combines synthetic GPS/load data, individual baselines, transparent monitoring rules, interactive visualisation and a staff-oriented Streamlit interface.
+The project combines synthetic training exposure, individual baselines, transparent monitoring rules, interactive visualisation and a staff-oriented Streamlit interface. V3 also adds a real external match-demand reference derived from SkillCorner Open Data (Australian A-League 2024/25).
 
 ![Featured cover](assets/exports/05_featured_cover.png)
 
@@ -31,9 +31,9 @@ Football performance data is easy to turn into dashboards and much harder to tur
 
 The app therefore avoids an artificial "injury probability" and focuses on exposure, preparation and context.
 
-## Dataset
+## Data design
 
-The dataset is fully synthetic and designed to reproduce plausible performance-monitoring situations.
+The training dataset is synthetic and designed to reproduce plausible performance-monitoring situations. The external match-demand reference is real and is derived from SkillCorner Open Data.
 
 - 24 outfield players
 - 5 position groups: CB, FB, CM, W, ST
@@ -43,7 +43,11 @@ The dataset is fully synthetic and designed to reproduce plausible performance-m
 - Daily training / match observations
 - Total distance, HSR, sprint distance, accelerations, decelerations, peak speed, session RPE, load and wellness
 
+The real match-demand layer uses season-level player-position physical aggregates from the Australian A-League 2024/25. This portfolio processing step keeps position samples with at least five matches and no failed physical quality checks, then exposes P25, P50, P75 and P90 for total distance, HSR, sprint distance and PSV-99.
+
 Goalkeepers are intentionally excluded because their physical demands require a different framework.
+
+See [DATA_SOURCES.md](DATA_SOURCES.md) for provenance, definitions and limitations.
 
 ## Designed scenarios
 
@@ -99,12 +103,13 @@ These ratios are descriptive comparisons. `1.00x` means that the total pre-match
 
 ## Dashboard
 
-The Streamlit app contains four workspaces:
+The Streamlit app contains five workspaces:
 
 1. **Squad Overview** — status distribution, priority queue and squad monitoring board
-2. **Player Analysis** — player card, exposure profile, match-demand lens, microcycle and wellness/load context
-3. **Exposure Map** — interactive squad-level sprint/HSR positioning
-4. **Methodology** — assumptions, monitoring rules and designed scenarios
+2. **Player Analysis** — player card, exposure profile, real positional match-demand comparison, microcycle and wellness/load context
+3. **Real Match Demands** — SkillCorner P25–P90 positional references for HSR, sprint distance, total distance and PSV-99
+4. **Exposure Map** — interactive squad-level sprint/HSR positioning
+5. **Methodology** — assumptions, monitoring rules, data provenance and designed scenarios
 
 ## Project structure
 
@@ -150,4 +155,6 @@ If the data and visuals are already present, only the last command is required.
 
 ## Important limitation
 
-All player data is synthetic. Monitoring thresholds are transparent portfolio heuristics created to demonstrate a workflow and interface. The project does not provide medical diagnosis, injury prediction or return-to-play clearance.
+Training and wellness data are synthetic. The external match-demand reference is derived from real SkillCorner Open Data. Monitoring thresholds are transparent portfolio heuristics created to demonstrate a workflow and interface. The project does not provide medical diagnosis, injury prediction or return-to-play clearance.
+
+The real benchmark layer is based on season-level player-position aggregates, so it captures positional variation across players but does not yet model full fixture-to-fixture variability. That is the next planned analytical layer.
