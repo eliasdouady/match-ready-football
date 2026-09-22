@@ -27,6 +27,7 @@ st.set_page_config(
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+REAL_DIR = PROJECT_ROOT / "data" / "real"
 
 
 # ============================================================
@@ -234,11 +235,14 @@ def load_data():
         PROCESSED_DIR / "team_weekly_summary.csv",
         parse_dates=["snapshot_date"],
     )
-    return sessions, players, snapshots, daily, team
+    real_benchmarks = pd.read_csv(
+        REAL_DIR / "skillcorner_position_benchmarks.csv"
+    )
+    return sessions, players, snapshots, daily, team, real_benchmarks
 
 
 try:
-    sessions, players, snapshots, daily, team = load_data()
+    sessions, players, snapshots, daily, team, real_benchmarks = load_data()
 except FileNotFoundError:
     st.error(
         "Processed data not found. Run `python src/data_generation.py` and "
@@ -384,7 +388,7 @@ st.sidebar.divider()
 
 page = st.sidebar.radio(
     "Workspace",
-    ["Squad Overview", "Player Analysis", "Exposure Map", "Methodology"],
+    ["Squad Overview", "Player Analysis", "Real Match Demands", "Exposure Map", "Methodology"],
 )
 
 monitoring_weeks = sorted(
@@ -419,7 +423,8 @@ selected_player = st.sidebar.selectbox(
 )
 
 st.sidebar.divider()
-st.sidebar.caption("Synthetic dataset · 24 outfield players · 8-week monitoring period")
+st.sidebar.caption("Synthetic training dataset · 24 outfield players · 8-week monitoring period")
+st.sidebar.caption("Real match-demand reference · SkillCorner A-League 2024/25")
 st.sidebar.caption("Weeks 1–3 = baseline acquisition · Weeks 4–8 = monitoring")
 st.sidebar.caption("Portfolio project · Not a medical diagnostic tool")
 
@@ -670,6 +675,21 @@ elif page == "Player Analysis":
     row = player_week.iloc[0]
     position_full = POSITION_LABELS.get(row["position"], row["position"])
 
+    real_ref = real_benchmarks[
+        real_benchmarks["position"] == row["position"]
+    ]
+    if real_ref.empty:
+        st.error("No real match-demand reference is available for this position.")
+        st.stop()
+    real_ref = real_ref.iloc[0]
+
+    real_match_distance = real_ref["total_distance_p50_m"]
+    real_match_hsr = real_ref["hsr_p50_m"]
+    real_match_sprint = real_ref["sprint_p50_m"]
+    real_psv99 = real_ref["psv99_p50_kmh"]
+    training_to_real_hsr = row["training_hsr_m"] / real_match_hsr
+    training_to_real_sprint = row["training_sprint_m"] / real_match_sprint
+
     left_card, right_card = st.columns([0.78, 1.45])
 
     with left_card:
@@ -687,16 +707,16 @@ elif page == "Player Analysis":
                         <div class="mr-ref-value">{row['vmax_kmh']:.1f} km/h</div>
                     </div>
                     <div class="mr-reference-item">
-                        <div class="mr-ref-label">MATCH DISTANCE</div>
-                        <div class="mr-ref-value">{row['match_total_distance_m']/1000:.1f} km</div>
+                        <div class="mr-ref-label">REAL MATCH P50 · DISTANCE</div>
+                        <div class="mr-ref-value">{real_match_distance/1000:.1f} km</div>
                     </div>
                     <div class="mr-reference-item">
-                        <div class="mr-ref-label">MATCH HSR</div>
-                        <div class="mr-ref-value">{row['match_hsr_m']:.0f} m</div>
+                        <div class="mr-ref-label">REAL MATCH P50 · HSR</div>
+                        <div class="mr-ref-value">{real_match_hsr:.0f} m</div>
                     </div>
                     <div class="mr-reference-item">
-                        <div class="mr-ref-label">MATCH SPRINT</div>
-                        <div class="mr-ref-value">{row['match_sprint_distance_m']:.0f} m</div>
+                        <div class="mr-ref-label">REAL MATCH P50 · SPRINT</div>
+                        <div class="mr-ref-value">{real_match_sprint:.0f} m</div>
                     </div>
                 </div>
             </div>
@@ -754,22 +774,22 @@ elif page == "Player Analysis":
         kpi_card("ALIGNMENT", f"{row['preparation_alignment']:.0f}", "preparation alignment · 0–100", PURPLE)
 
     section_header(
-        "Training-to-Match Exposure",
-        "Pre-match training week expressed relative to this player's typical one-match physical demand",
+        "Training-to-Real-Match Reference",
+        "Synthetic pre-match training exposure compared with the real SkillCorner positional P50",
     )
 
     dm1, dm2, dm3, dm4 = st.columns(4)
     with dm1:
         small_stat(
-            "WEEKLY HSR / MATCH",
-            f"{row['training_to_match_hsr']:.2f}×",
-            f"{row['training_hsr_m']:.0f} m training · {row['match_hsr_m']:.0f} m match reference",
+            "WEEKLY HSR / REAL P50",
+            f"{training_to_real_hsr:.2f}×",
+            f"{row['training_hsr_m']:.0f} m training · {real_match_hsr:.0f} m real positional P50",
         )
     with dm2:
         small_stat(
-            "WEEKLY SPRINT / MATCH",
-            f"{row['training_to_match_sprint']:.2f}×",
-            f"{row['training_sprint_m']:.0f} m training · {row['match_sprint_distance_m']:.0f} m match reference",
+            "WEEKLY SPRINT / REAL P50",
+            f"{training_to_real_sprint:.2f}×",
+            f"{row['training_sprint_m']:.0f} m training · {real_match_sprint:.0f} m real positional P50",
         )
     with dm3:
         small_stat(
@@ -785,8 +805,9 @@ elif page == "Player Analysis":
         )
 
     st.caption(
-        "The training-to-match ratios are descriptive. 1.00× means that the total pre-match training-week "
-        "exposure equals the player's synthetic typical 90-minute match demand; it is not presented as a target."
+        "Real reference: SkillCorner Open Data, Australian A-League 2024/25. "
+        "The P50 is the median across eligible season-level player-position averages "
+        "(minimum 5 matches in this portfolio processing step). Ratios are descriptive, not prescribed targets."
     )
 
     left, right = st.columns([1, 1.15])
@@ -959,6 +980,176 @@ elif page == "Player Analysis":
         st.plotly_chart(fig, use_container_width=True)
 
 
+
+# ============================================================
+# REAL MATCH DEMANDS
+# ============================================================
+
+elif page == "Real Match Demands":
+    section_header(
+        "Real Match-Demand Reference",
+        "SkillCorner Open Data · Australian A-League 2024/25 · season-level player-position physical aggregates",
+    )
+
+    render_html(
+        f"""
+        <div class="mr-insight" style="border-left-color:{READY};">
+            <div class="mr-insight-title">WHAT CHANGED IN V3?</div>
+            Training exposure remains synthetic and reproducible, but the external match-demand
+            reference is now built from real SkillCorner physical data rather than hand-set positional values.
+        </div>
+        """
+    )
+
+    source_left, source_right = st.columns([2.2, 0.8])
+    with source_left:
+        st.caption(
+            "Benchmark construction keeps player-position samples with at least five matches and "
+            "no failed physical quality checks. The upstream aggregate dataset is filtered by SkillCorner "
+            "to performances above 60 minutes."
+        )
+    with source_right:
+        st.link_button(
+            "Open SkillCorner source ↗",
+            "https://github.com/SkillCorner/opendata",
+            use_container_width=True,
+        )
+
+    role = st.selectbox(
+        "Position reference",
+        ["CB", "FB", "CM", "W", "ST"],
+        index=3,
+        format_func=lambda x: f"{x} · {POSITION_LABELS.get(x, x)}",
+    )
+    ref = real_benchmarks[real_benchmarks["position"] == role].iloc[0]
+
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        kpi_card(
+            "REAL MATCH DISTANCE · P50",
+            f"{ref['total_distance_p50_m']/1000:.1f} km",
+            f"P25 {ref['total_distance_p25_m']/1000:.1f} · P90 {ref['total_distance_p90_m']/1000:.1f} km",
+            ACCENT,
+        )
+    with k2:
+        kpi_card(
+            "REAL HSR · P50",
+            f"{ref['hsr_p50_m']:.0f} m",
+            f"P25 {ref['hsr_p25_m']:.0f} · P90 {ref['hsr_p90_m']:.0f} m",
+            READY,
+        )
+    with k3:
+        kpi_card(
+            "REAL SPRINT · P50",
+            f"{ref['sprint_p50_m']:.0f} m",
+            f"P25 {ref['sprint_p25_m']:.0f} · P90 {ref['sprint_p90_m']:.0f} m",
+            MONITOR,
+        )
+    with k4:
+        kpi_card(
+            "PSV-99 · P50",
+            f"{ref['psv99_p50_kmh']:.1f} km/h",
+            f"{int(ref['n_players'])} players · {int(ref['total_matches'])} matches",
+            PURPLE,
+        )
+
+    section_header(
+        "Where does the positional median sit?",
+        "Real season-level player-position distributions; bars show P25–P90 and the dot shows P50",
+    )
+    d1, d2 = st.columns(2)
+
+    with d1:
+        fig = go.Figure()
+        for _, r in real_benchmarks.iterrows():
+            fig.add_trace(
+                go.Scatter(
+                    x=[r["hsr_p25_m"], r["hsr_p90_m"]],
+                    y=[r["position"], r["position"]],
+                    mode="lines",
+                    line=dict(color=GRID, width=9),
+                    hoverinfo="skip",
+                    showlegend=False,
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=[r["hsr_p50_m"]],
+                    y=[r["position"]],
+                    mode="markers",
+                    marker=dict(
+                        size=12,
+                        color=ACCENT if r["position"] == role else READY,
+                        line=dict(color=BG, width=2),
+                    ),
+                    hovertemplate=(
+                        f"{r['position']}<br>P25 {r['hsr_p25_m']:.0f} m"
+                        f"<br>P50 {r['hsr_p50_m']:.0f} m"
+                        f"<br>P90 {r['hsr_p90_m']:.0f} m<extra></extra>"
+                    ),
+                    showlegend=False,
+                )
+            )
+        fig.update_layout(title="High-speed running")
+        fig.update_xaxes(title="Metres per eligible match performance")
+        fig.update_yaxes(title="")
+        apply_plot_style(fig, 390)
+        st.plotly_chart(fig, use_container_width=True)
+
+    with d2:
+        fig = go.Figure()
+        for _, r in real_benchmarks.iterrows():
+            fig.add_trace(
+                go.Scatter(
+                    x=[r["sprint_p25_m"], r["sprint_p90_m"]],
+                    y=[r["position"], r["position"]],
+                    mode="lines",
+                    line=dict(color=GRID, width=9),
+                    hoverinfo="skip",
+                    showlegend=False,
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=[r["sprint_p50_m"]],
+                    y=[r["position"]],
+                    mode="markers",
+                    marker=dict(
+                        size=12,
+                        color=ACCENT if r["position"] == role else MONITOR,
+                        line=dict(color=BG, width=2),
+                    ),
+                    hovertemplate=(
+                        f"{r['position']}<br>P25 {r['sprint_p25_m']:.0f} m"
+                        f"<br>P50 {r['sprint_p50_m']:.0f} m"
+                        f"<br>P90 {r['sprint_p90_m']:.0f} m<extra></extra>"
+                    ),
+                    showlegend=False,
+                )
+            )
+        fig.update_layout(title="Sprint distance")
+        fig.update_xaxes(title="Metres per eligible match performance")
+        fig.update_yaxes(title="")
+        apply_plot_style(fig, 390)
+        st.plotly_chart(fig, use_container_width=True)
+
+    section_header(
+        "How to read this layer",
+        "A real external reference adds context without turning a positional average into a universal target",
+    )
+    render_html(
+        f"""
+        <div class="mr-panel">
+            <b>{role} · {POSITION_LABELS.get(role, role)}</b><br><br>
+            The positional P50 is a reference point, not a prescription. P25–P90 is displayed to make
+            variation visible instead of hiding it behind one average. This version captures
+            between-player positional variation from season aggregates. Fixture-to-fixture variability
+            from raw tracking is the next analytical layer.
+        </div>
+        """
+    )
+
+
 # ============================================================
 # EXPOSURE MAP
 # ============================================================
@@ -1087,7 +1278,7 @@ elif page == "Exposure Map":
 elif page == "Methodology":
     section_header(
         "Methodology",
-        "Transparent assumptions, synthetic scenarios and limits of interpretation",
+        "Transparent assumptions, hybrid synthetic/real data design and limits of interpretation",
     )
 
     a, b = st.columns(2)
@@ -1095,10 +1286,11 @@ elif page == "Methodology":
         render_html(
             """
             <div class="mr-panel">
-                <b>1 · Synthetic football environment</b><br><br>
-                24 outfield players are simulated across eight competitive microcycles.
-                Position profiles differ for CB, FB, CM, W and ST. Goalkeepers are excluded because
-                their physical demands require a different monitoring framework.
+                <b>1 · Hybrid data design</b><br><br>
+                Training exposure is simulated for 24 outfield players across eight competitive microcycles.
+                The external match-demand reference is derived from real SkillCorner A-League 2024/25
+                season-level physical aggregates. Goalkeepers remain excluded because their demands
+                require a different monitoring framework.
             </div>
             """
         )
@@ -1115,10 +1307,10 @@ elif page == "Methodology":
         render_html(
             """
             <div class="mr-panel">
-                <b>3 · Match-demand lens</b><br><br>
-                Weekly training HSR and sprint distance are also expressed relative to each player's
-                synthetic typical 90-minute match demand. These ratios are descriptive comparisons,
-                not prescribed targets.
+                <b>3 · Real match-demand lens</b><br><br>
+                Weekly synthetic training HSR and sprint distance are expressed relative to the real
+                positional P50 from SkillCorner Open Data. The dashboard also exposes P25–P90 to avoid
+                presenting one positional average as a universal target. These ratios are descriptive.
             </div>
             """
         )
@@ -1205,7 +1397,7 @@ elif page == "Methodology":
 render_html(
     """
     <div class="mr-disclaimer">
-        <b>Match Ready?</b> · Synthetic football performance data · Portfolio project.<br>
+        <b>Match Ready?</b> · Synthetic training data + SkillCorner open match-demand reference · Portfolio project.<br>
         Monitoring classifications and the preparation-alignment index are illustrative decision-support constructs.
         They are not medical diagnoses, validated injury-risk predictions or return-to-play clearances.
     </div>
