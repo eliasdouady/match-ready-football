@@ -436,6 +436,7 @@ st.sidebar.caption("See who needs attention, understand why, and compare trainin
 st.sidebar.divider()
 
 PAGE_LABELS = {
+    "Performance Report": "Performance report",
     "Squad Overview": "Team overview",
     "Player Analysis": "Player view",
     "Exposure Map": "Team exposure map",
@@ -444,7 +445,7 @@ PAGE_LABELS = {
 
 page = st.sidebar.radio(
     "Workspace",
-    ["Squad Overview", "Player Analysis", "Exposure Map", "Methodology"],
+    ["Performance Report", "Squad Overview", "Player Analysis", "Exposure Map", "Methodology"],
     format_func=lambda x: PAGE_LABELS[x],
 )
 
@@ -490,27 +491,184 @@ st.sidebar.caption("Portfolio project · Not a medical diagnostic tool")
 # HERO
 # ============================================================
 
-render_html(
-    """
-    <div class="mr-hero">
-        <div class="mr-eyebrow">FOOTBALL PERFORMANCE · DATA SCIENCE</div>
-        <div class="mr-title">Match Ready?</div>
-        <div class="mr-subtitle">
-            A simple decision-support view: what changed this week, why it matters,
-            and how the player's preparation compares with real match-demand context.
+if page != "Performance Report":
+    render_html(
+        """
+        <div class="mr-hero">
+            <div class="mr-eyebrow">FOOTBALL PERFORMANCE · DATA SCIENCE</div>
+            <div class="mr-title">Match Ready?</div>
+            <div class="mr-subtitle">
+                A simple decision-support view: what changed this week, why it matters,
+                and how the player's preparation compares with real match-demand context.
+            </div>
         </div>
-    </div>
-    """
-)
+        """
+    )
 
 week_df = snapshots[snapshots["week"] == selected_week].copy()
+
+
+# ============================================================
+# PERFORMANCE REPORT
+# ============================================================
+
+if page == "Performance Report":
+    player_history = snapshots[snapshots["player_id"] == selected_player].copy()
+    player_week = player_history[player_history["week"] == selected_week]
+
+    if player_week.empty:
+        st.warning("No snapshot available for this player/week.")
+        st.stop()
+
+    row = player_week.iloc[0]
+    position_full = POSITION_LABELS.get(row["position"], row["position"])
+    status_color = STATUS_COLORS.get(row["monitoring_status"], ACCENT)
+
+    render_html(
+        f"""
+        <div style="padding:6px 0 10px 0;">
+            <div style="color:{MUTED};font-size:10px;font-weight:800;letter-spacing:.14em;">
+                MATCH READY? · PERFORMANCE REPORT
+            </div>
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-top:6px;">
+                <div>
+                    <div style="color:{TEXT};font-size:38px;line-height:1;font-weight:850;">
+                        {row['player_name']} · {position_full}
+                    </div>
+                    <div style="color:{MUTED};font-size:13px;margin-top:8px;">
+                        Week {selected_week} · pre-match preparation
+                    </div>
+                </div>
+                <div>{status_badge(row['monitoring_status'])}</div>
+            </div>
+        </div>
+        """
+    )
+
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        kpi_card(
+            "TRAINING LOAD",
+            f"{row['load_vs_baseline'] * 100:.0f}%",
+            "of usual weekly load",
+            ACCENT,
+        )
+    with k2:
+        kpi_card(
+            "SPRINT EXPOSURE",
+            f"{row['sprint_vs_baseline'] * 100:.0f}%",
+            "of usual sprint exposure",
+            UNDER if row["sprint_vs_baseline"] < 0.60 else MONITOR if row["sprint_vs_baseline"] < 0.85 else READY,
+        )
+    with k3:
+        kpi_card(
+            "HIGH-SPEED RUNNING",
+            f"{row['hsr_vs_baseline'] * 100:.0f}%",
+            "of usual high-speed running",
+            UNDER if row["hsr_vs_baseline"] < 0.60 else MONITOR if row["hsr_vs_baseline"] < 0.80 else READY,
+        )
+    with k4:
+        kpi_card(
+            "PEAK SPEED",
+            f"{row['peak_training_pct_vmax']:.0f}% Vmax",
+            "fastest speed reached this week",
+            UNDER if row["peak_training_pct_vmax"] < 85 else MONITOR if row["peak_training_pct_vmax"] < 90 else READY,
+        )
+
+    if row["monitoring_status"] == "Underexposed" and not bool(row["planned_reduction"]):
+        headline = "SAME LOAD. DIFFERENT STIMULUS."
+        summary = (
+            f"Overall work reached {row['load_vs_baseline'] * 100:.0f}% of usual, "
+            f"but sprint exposure fell to {row['sprint_vs_baseline'] * 100:.0f}% and high-speed running "
+            f"to {row['hsr_vs_baseline'] * 100:.0f}%. The week was not light — it was less speed-specific."
+        )
+    elif bool(row["planned_reduction"]):
+        headline = "LOWER EXPOSURE, BUT PLANNED."
+        summary = (
+            "The reduced exposure is intentional in the current training context, so the numerical flag "
+            "should not be treated as an unexpected preparation issue."
+        )
+    elif row["monitoring_status"] == "Monitor":
+        headline = "REVIEW THE CONTEXT."
+        summary = plain_language_takeaway(row)
+    else:
+        headline = "PREPARATION BROADLY ALIGNED."
+        summary = plain_language_takeaway(row)
+
+    render_html(
+        f"""
+        <div class="mr-insight" style="border-left-color:{status_color};margin-top:18px;">
+            <div class="mr-insight-title">{headline}</div>
+            <div style="font-size:16px;line-height:1.5;">{summary}</div>
+        </div>
+        """
+    )
+
+    section_header(
+        "Preparation profile",
+        "Current week vs the player's own usual pre-match profile · 100% = individual baseline",
+    )
+
+    report_profile = pd.DataFrame(
+        {
+            "Metric": ["Training load", "Total distance", "High-speed running", "Sprint"],
+            "Current": [
+                row["load_vs_baseline"] * 100,
+                row["distance_vs_baseline"] * 100,
+                row["hsr_vs_baseline"] * 100,
+                row["sprint_vs_baseline"] * 100,
+            ],
+        }
+    )
+
+    bar_colors = []
+    for metric, value in zip(report_profile["Metric"], report_profile["Current"]):
+        if metric in ["Training load", "Total distance"]:
+            bar_colors.append(ACCENT if value >= 85 else MONITOR)
+        elif metric == "High-speed running":
+            bar_colors.append(READY if value >= 80 else MONITOR if value >= 60 else UNDER)
+        else:
+            bar_colors.append(READY if value >= 85 else MONITOR if value >= 60 else UNDER)
+
+    fig = go.Figure(
+        go.Bar(
+            x=report_profile["Current"],
+            y=report_profile["Metric"],
+            orientation="h",
+            marker_color=bar_colors,
+            text=[f"{v:.0f}%" for v in report_profile["Current"]],
+            textposition="outside",
+            hovertemplate="%{y}: %{x:.0f}% of baseline<extra></extra>",
+        )
+    )
+    fig.add_vline(
+        x=100,
+        line_dash="dash",
+        line_color=WHITE,
+        opacity=0.55,
+        annotation_text="Usual",
+        annotation_position="top",
+    )
+    fig.update_xaxes(
+        range=[0, max(130, float(report_profile["Current"].max()) + 12)],
+        title="Individual baseline (%)",
+    )
+    fig.update_yaxes(title="")
+    fig.update_layout(showlegend=False, bargap=0.34)
+    apply_plot_style(fig, 410)
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.caption(
+        "Synthetic training and wellness data. Monitoring logic is illustrative and supports staff review; "
+        "it is not an injury-risk prediction or medical clearance."
+    )
 
 
 # ============================================================
 # SQUAD OVERVIEW
 # ============================================================
 
-if page == "Squad Overview":
+elif page == "Squad Overview":
     section_header(
         "Team overview",
         f"Week {selected_week} · start with the priority queue, then use the table for detail",
