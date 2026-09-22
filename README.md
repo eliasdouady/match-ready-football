@@ -6,7 +6,7 @@ Match Ready? is a portfolio project that simulates a football performance-monito
 
 > Is the player's recent training exposure consistent with the physical demands we expect from them?
 
-The project combines synthetic GPS/load data, individual baselines, transparent monitoring rules, interactive visualisation and a staff-oriented Streamlit interface.
+The project combines synthetic training/load data, individual baselines, transparent monitoring rules, interactive visualisation and a staff-oriented Streamlit interface. The match-demand context is now grounded in real SkillCorner Open Data from the Australian A-League 2024/25.
 
 ![Featured cover](assets/exports/05_featured_cover.png)
 
@@ -31,9 +31,11 @@ Football performance data is easy to turn into dashboards and much harder to tur
 
 The app therefore avoids an artificial "injury probability" and focuses on exposure, preparation and context.
 
-## Dataset
+## Data design
 
-The dataset is fully synthetic and designed to reproduce plausible performance-monitoring situations.
+Training and wellness data are synthetic so the workflow remains reproducible and does not pretend to contain private club GPS data.
+
+The external match-demand reference is real and is derived from SkillCorner Open Data.
 
 - 24 outfield players
 - 5 position groups: CB, FB, CM, W, ST
@@ -44,6 +46,14 @@ The dataset is fully synthetic and designed to reproduce plausible performance-m
 - Total distance, HSR, sprint distance, accelerations, decelerations, peak speed, session RPE, load and wellness
 
 Goalkeepers are intentionally excluded because their physical demands require a different framework.
+
+### Real match-demand reference
+
+The project uses season-level SkillCorner physical aggregates for the Australian A-League 2024/25. For each position group, Match Ready? stores P25, P50, P75 and P90 for total distance, HSR, sprint distance and PSV-99.
+
+This portfolio processing step keeps player-position samples with at least five matches and no failed physical quality checks.
+
+See [DATA_SOURCES.md](DATA_SOURCES.md) for provenance, processing choices and limitations.
 
 ## Designed scenarios
 
@@ -77,7 +87,7 @@ The monitoring interface uses:
 - recency of >90% and >95% Vmax exposure
 - overall training load vs individual baseline
 - wellness context
-- pre-match training exposure vs individual match demand
+- pre-match training exposure vs real positional match-demand distributions
 
 ### Preparation Alignment
 
@@ -89,13 +99,11 @@ A custom 0–100 visual index combines:
 
 The index is an interface aid for this synthetic portfolio project. It is **not** a validated injury-risk score or a medical metric.
 
-## Training-to-match lens
+## Real match-demand lens
 
-The app also expresses the pre-match training week relative to each player's synthetic typical one-match demand.
+The Player Analysis workspace compares the synthetic pre-match training week with real positional distributions from SkillCorner Open Data.
 
-![Training to match demand](assets/exports/06_training_to_match_demand.png)
-
-These ratios are descriptive comparisons. `1.00x` means that the total pre-match training-week exposure equals the player's synthetic typical 90-minute match demand; it is not presented as a prescribed target.
+The dashboard shows the positional P25–P90 range and the P50 reference for HSR and sprint distance. These are contextual benchmarks, not prescribed training targets. A full training week and a single match are different exposure windows; the comparison is used to inspect the stimulus mix across dimensions.
 
 ## Dashboard
 
@@ -116,10 +124,12 @@ match-ready-football/
 │   └── app.py
 ├── data/
 │   ├── raw/
-│   └── processed/
+│   ├── processed/
+│   └── real/
 ├── src/
 │   ├── data_generation.py
 │   ├── metrics.py
+│   ├── skillcorner_reference.py
 │   └── visuals.py
 ├── .streamlit/
 │   └── config.toml
@@ -150,4 +160,6 @@ If the data and visuals are already present, only the last command is required.
 
 ## Important limitation
 
-All player data is synthetic. Monitoring thresholds are transparent portfolio heuristics created to demonstrate a workflow and interface. The project does not provide medical diagnosis, injury prediction or return-to-play clearance.
+Training and wellness data are synthetic; the external match-demand reference is real SkillCorner Open Data. The current real-data layer uses season-level player-position aggregates, so it captures positional variation across players but not the complete fixture-to-fixture distribution of one player.
+
+Monitoring thresholds are transparent portfolio heuristics created to demonstrate a workflow and interface. The project does not provide medical diagnosis, injury prediction or return-to-play clearance.
