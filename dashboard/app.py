@@ -145,6 +145,41 @@ render_html(
     .mr-kpi-value {{ color:{TEXT}; font-size:33px; line-height:1; font-weight:800; }}
     .mr-kpi-sub {{ color:{MUTED}; font-size:11px; margin-top:10px; line-height:1.35; }}
 
+    .mr-report-kpi {{
+        background:{PANEL}; border:1px solid {GRID}; border-radius:13px;
+        padding:13px 16px; min-height:92px;
+    }}
+    .mr-report-kpi-label {{
+        color:{MUTED}; font-size:9px; letter-spacing:.09em;
+        font-weight:800; margin-bottom:7px;
+    }}
+    .mr-report-kpi-value {{
+        color:{TEXT}; font-size:29px; line-height:1; font-weight:800;
+    }}
+    .mr-report-kpi-sub {{
+        color:{MUTED}; font-size:10px; margin-top:8px; line-height:1.3;
+    }}
+    .mr-report-title {{
+        color:{TEXT}; font-size:34px; line-height:1; font-weight:850;
+    }}
+    .mr-report-meta {{
+        color:{MUTED}; font-size:11px; margin-top:7px;
+    }}
+    .mr-report-section-title {{
+        color:{TEXT}; font-size:18px; font-weight:760; margin-top:13px; margin-bottom:2px;
+    }}
+    .mr-report-section-subtitle {{
+        color:{MUTED}; font-size:10.5px; margin-bottom:10px;
+    }}
+    .mr-report-insight {{
+        background:{PANEL_ALT}; border-left:3px solid {ACCENT}; border-radius:10px;
+        padding:13px 16px; color:{TEXT}; margin:12px 0 13px 0; line-height:1.45;
+    }}
+    .mr-report-note {{
+        color:{MUTED}; font-size:9.5px; line-height:1.45;
+        margin-top:8px; padding-top:9px; border-top:1px solid {GRID};
+    }}
+
     .mr-section-title {{
         color:{TEXT}; font-size:20px; font-weight:750; margin-top:16px; margin-bottom:3px;
     }}
@@ -301,6 +336,26 @@ def kpi_card(label, value, subtitle="", color=None):
         </div>
         """
     )
+
+
+def report_kpi_card(label, value, subtitle="", color=None):
+    border = color or GRID
+    render_html(
+        f"""
+        <div class="mr-report-kpi" style="border-top:2px solid {border};">
+            <div class="mr-report-kpi-label">{label}</div>
+            <div class="mr-report-kpi-value">{value}</div>
+            <div class="mr-report-kpi-sub">{subtitle}</div>
+        </div>
+        """
+    )
+
+
+def report_section_header(title, subtitle=None):
+    html = f'<div class="mr-report-section-title">{title}</div>'
+    if subtitle:
+        html += f'<div class="mr-report-section-subtitle">{subtitle}</div>'
+    render_html(html)
 
 
 def small_stat(label, value, subtitle=""):
@@ -539,18 +594,14 @@ if page == "Performance Report":
 
     render_html(
         f"""
-        <div style="padding:6px 0 10px 0;">
-            <div style="color:{MUTED};font-size:10px;font-weight:800;letter-spacing:.14em;">
+        <div style="padding:2px 0 7px 0;">
+            <div style="color:{MUTED};font-size:9px;font-weight:800;letter-spacing:.14em;">
                 MATCH READY? · PERFORMANCE REPORT
             </div>
-            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-top:6px;">
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-top:5px;">
                 <div>
-                    <div style="color:{TEXT};font-size:38px;line-height:1;font-weight:850;">
-                        {row['player_name']} · {position_full}
-                    </div>
-                    <div style="color:{MUTED};font-size:13px;margin-top:8px;">
-                        Week {selected_week} · pre-match preparation
-                    </div>
+                    <div class="mr-report-title">{row['player_name']} · {position_full}</div>
+                    <div class="mr-report-meta">Week {selected_week} · pre-match preparation</div>
                 </div>
                 <div>{status_badge(row['monitoring_status'])}</div>
             </div>
@@ -560,28 +611,28 @@ if page == "Performance Report":
 
     k1, k2, k3, k4 = st.columns(4)
     with k1:
-        kpi_card(
+        report_kpi_card(
             "TRAINING LOAD",
             f"{row['load_vs_baseline'] * 100:.0f}%",
             "of usual weekly load",
             ACCENT,
         )
     with k2:
-        kpi_card(
+        report_kpi_card(
             "SPRINT EXPOSURE",
             f"{row['sprint_vs_baseline'] * 100:.0f}%",
             "of usual sprint exposure",
             UNDER if row["sprint_vs_baseline"] < 0.60 else MONITOR if row["sprint_vs_baseline"] < 0.85 else READY,
         )
     with k3:
-        kpi_card(
+        report_kpi_card(
             "HIGH-SPEED RUNNING",
             f"{row['hsr_vs_baseline'] * 100:.0f}%",
             "of usual high-speed running",
             UNDER if row["hsr_vs_baseline"] < 0.60 else MONITOR if row["hsr_vs_baseline"] < 0.80 else READY,
         )
     with k4:
-        kpi_card(
+        report_kpi_card(
             "PEAK SPEED",
             f"{row['peak_training_pct_vmax']:.0f}% Vmax",
             "fastest speed reached this week",
@@ -610,16 +661,16 @@ if page == "Performance Report":
 
     render_html(
         f"""
-        <div class="mr-insight" style="border-left-color:{status_color};margin-top:18px;">
+        <div class="mr-report-insight" style="border-left-color:{status_color};">
             <div class="mr-insight-title">{headline}</div>
-            <div style="font-size:16px;line-height:1.5;">{summary}</div>
+            <div style="font-size:14.5px;line-height:1.45;">{summary}</div>
         </div>
         """
     )
 
-    section_header(
+    report_section_header(
         "Preparation profile",
-        "Current week vs the player's own usual pre-match profile · 100% = individual baseline",
+        "Current week vs the player's usual pre-match profile · 100% = individual baseline",
     )
 
     report_profile = pd.DataFrame(
@@ -667,13 +718,13 @@ if page == "Performance Report":
         title="Individual baseline (%)",
     )
     fig.update_yaxes(title="")
-    fig.update_layout(showlegend=False, bargap=0.34)
-    apply_plot_style(fig, 410)
+    fig.update_layout(showlegend=False, bargap=0.28)
+    apply_plot_style(fig, 335)
     st.plotly_chart(fig, use_container_width=True)
 
-    section_header(
+    report_section_header(
         "Real match context",
-        "SkillCorner Open Data · A-League 2024/25 · external positional reference",
+        "SkillCorner Open Data · A-League 2024/25",
     )
 
     hsr_ratio = row["training_hsr_m"] / real_hsr_p50
@@ -681,14 +732,14 @@ if page == "Performance Report":
 
     mc1, mc2 = st.columns(2)
     with mc1:
-        kpi_card(
+        report_kpi_card(
             "HIGH-SPEED RUNNING",
             f"{row['training_hsr_m']:.0f} m",
             f"real {position_full} median: {real_hsr_p50:.0f} m · {hsr_ratio:.2f}×",
             ACCENT,
         )
     with mc2:
-        kpi_card(
+        report_kpi_card(
             "SPRINT DISTANCE",
             f"{row['training_sprint_m']:.0f} m",
             f"real {position_full} median: {real_sprint_p50:.0f} m · {sprint_ratio:.2f}×",
@@ -756,7 +807,7 @@ if page == "Performance Report":
         annotation_position="top",
     )
     fig.update_layout(
-        title="This training week relative to the real positional match median",
+        title="Training week vs real positional match median",
         showlegend=False,
     )
     fig.update_xaxes(
@@ -765,29 +816,22 @@ if page == "Performance Report":
         ticksuffix="%",
     )
     fig.update_yaxes(title="")
-    apply_plot_style(fig, 285)
+    apply_plot_style(fig, 245)
     st.plotly_chart(fig, use_container_width=True)
 
     render_html(
         f"""
-        <div class="mr-insight" style="border-left-color:{ACCENT};">
+        <div class="mr-report-insight" style="border-left-color:{ACCENT};">
             <div class="mr-insight-title">READ IT IN ONE LINE</div>
             <b>HSR above the role median · Sprint below the role median.</b>
-            The speed stimulus is uneven — plenty of high-speed running, comparatively less sprinting.
+            The week contains plenty of high-speed running, but comparatively less sprinting.
+        </div>
+        <div class="mr-report-note">
+            SkillCorner Open Data · A-League 2024/25 · {int(real_ref['n_players'])} eligible {position_full.lower()}
+            player-position samples · {int(real_ref['total_matches'])} matches represented.
+            Synthetic training/wellness data · descriptive decision-support only · not a medical or injury-risk model.
         </div>
         """
-    )
-
-    st.caption(
-        f"Reference: SkillCorner Open Data · Australian A-League 2024/25 · "
-        f"{int(real_ref['n_players'])} eligible {position_full.lower()} player-position samples · "
-        f"{int(real_ref['total_matches'])} matches represented. "
-        "A training week and one match are different exposure windows; this is context, not a target."
-    )
-
-    st.caption(
-        "Synthetic training and wellness data. Monitoring logic is illustrative and supports staff review; "
-        "it is not an injury-risk prediction or medical clearance."
     )
 
 
