@@ -673,46 +673,48 @@ if page == "Performance Report":
 
     section_header(
         "Real match context",
-        "A-League 2024/25 positional reference from SkillCorner Open Data · context, not a training target",
+        "SkillCorner Open Data · A-League 2024/25 · external positional reference",
     )
 
-    match_context = pd.DataFrame(
-        {
-            "Metric": ["High-speed running", "Sprint"],
-            "Training": [row["training_hsr_m"], row["training_sprint_m"]],
-            "P25": [real_hsr_p25, real_sprint_p25],
-            "P50": [real_hsr_p50, real_sprint_p50],
-            "P90": [real_hsr_p90, real_sprint_p90],
-        }
-    )
+    hsr_ratio = row["training_hsr_m"] / real_hsr_p50
+    sprint_ratio = row["training_sprint_m"] / real_sprint_p50
 
     mc1, mc2 = st.columns(2)
     with mc1:
         kpi_card(
             "HIGH-SPEED RUNNING",
             f"{row['training_hsr_m']:.0f} m",
-            f"real {position_full} median: {real_hsr_p50:.0f} m",
+            f"real {position_full} median: {real_hsr_p50:.0f} m · {hsr_ratio:.2f}×",
             ACCENT,
         )
     with mc2:
         kpi_card(
             "SPRINT DISTANCE",
             f"{row['training_sprint_m']:.0f} m",
-            f"real {position_full} median: {real_sprint_p50:.0f} m",
+            f"real {position_full} median: {real_sprint_p50:.0f} m · {sprint_ratio:.2f}×",
             ACCENT,
         )
+
+    match_context = pd.DataFrame(
+        {
+            "Metric": ["High-speed running", "Sprint"],
+            "Training_pct": [hsr_ratio * 100, sprint_ratio * 100],
+            "P25_pct": [real_hsr_p25 / real_hsr_p50 * 100, real_sprint_p25 / real_sprint_p50 * 100],
+            "P90_pct": [real_hsr_p90 / real_hsr_p50 * 100, real_sprint_p90 / real_sprint_p50 * 100],
+        }
+    )
 
     fig = go.Figure()
     for _, metric_row in match_context.iterrows():
         fig.add_trace(
             go.Scatter(
-                x=[metric_row["P25"], metric_row["P90"]],
+                x=[metric_row["P25_pct"], metric_row["P90_pct"]],
                 y=[metric_row["Metric"], metric_row["Metric"]],
                 mode="lines",
                 line=dict(color=GRID, width=20),
                 hovertemplate=(
-                    "Real positional range: "
-                    + f"{metric_row['P25']:.0f}–{metric_row['P90']:.0f} m"
+                    "Real positional P25–P90: "
+                    + f"{metric_row['P25_pct']:.0f}%–{metric_row['P90_pct']:.0f}% of P50"
                     + "<extra></extra>"
                 ),
                 showlegend=False,
@@ -720,53 +722,67 @@ if page == "Performance Report":
         )
         fig.add_trace(
             go.Scatter(
-                x=[metric_row["P50"]],
+                x=[100],
                 y=[metric_row["Metric"]],
                 mode="markers",
                 marker=dict(size=12, color=READY, line=dict(color=BG, width=2)),
-                hovertemplate="Real positional median: %{x:.0f} m<extra></extra>",
+                hovertemplate="Real positional median (P50)<extra></extra>",
                 showlegend=False,
             )
         )
         fig.add_trace(
             go.Scatter(
-                x=[metric_row["Training"]],
+                x=[metric_row["Training_pct"]],
                 y=[metric_row["Metric"]],
-                mode="markers",
+                mode="markers+text",
+                text=[f"{metric_row['Training_pct']:.0f}%"],
+                textposition="middle right",
+                textfont=dict(color=TEXT, size=11),
                 marker=dict(size=16, color=ACCENT, symbol="diamond", line=dict(color=BG, width=2)),
-                hovertemplate="This training week: %{x:.0f} m<extra></extra>",
+                hovertemplate="This training week: %{x:.0f}% of real P50<extra></extra>",
                 showlegend=False,
             )
         )
 
+    x_min = max(40, float(match_context[["P25_pct", "Training_pct"]].min().min()) - 15)
+    x_max = max(175, float(match_context[["P90_pct", "Training_pct"]].max().max()) + 15)
+
+    fig.add_vline(
+        x=100,
+        line_dash="dash",
+        line_color=READY,
+        opacity=0.45,
+        annotation_text="Real role median",
+        annotation_position="top",
+    )
     fig.update_layout(
-        title="Blue diamond = this training week · green dot = real positional median · grey band = P25–P90",
+        title="This training week relative to the real positional match median",
         showlegend=False,
     )
-    fig.update_xaxes(title="Metres")
+    fig.update_xaxes(
+        title="Real positional median = 100%",
+        range=[x_min, x_max],
+        ticksuffix="%",
+    )
     fig.update_yaxes(title="")
     apply_plot_style(fig, 285)
     st.plotly_chart(fig, use_container_width=True)
 
-    hsr_ratio = row["training_hsr_m"] / real_hsr_p50
-    sprint_ratio = row["training_sprint_m"] / real_sprint_p50
-
     render_html(
         f"""
         <div class="mr-insight" style="border-left-color:{ACCENT};">
-            <div class="mr-insight-title">WHAT THIS ADDS</div>
-            High-speed running accumulated across the week sits above the real {position_full.lower()} match median
-            ({hsr_ratio:.2f}×), while sprint distance sits below it ({sprint_ratio:.2f}×).
-            The useful signal is the contrast between the two speed qualities — not whether the week should equal one match.
+            <div class="mr-insight-title">READ IT IN ONE LINE</div>
+            <b>HSR above the role median · Sprint below the role median.</b>
+            The speed stimulus is uneven — plenty of high-speed running, comparatively less sprinting.
         </div>
         """
     )
 
     st.caption(
-        f"Real reference: SkillCorner Open Data · Australian A-League 2024/25 · "
+        f"Reference: SkillCorner Open Data · Australian A-League 2024/25 · "
         f"{int(real_ref['n_players'])} eligible {position_full.lower()} player-position samples · "
         f"{int(real_ref['total_matches'])} matches represented. "
-        "Synthetic training data are compared with real match-demand distributions for context only."
+        "A training week and one match are different exposure windows; this is context, not a target."
     )
 
     st.caption(
