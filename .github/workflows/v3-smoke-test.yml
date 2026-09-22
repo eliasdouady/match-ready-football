@@ -1,0 +1,63 @@
+name: V3 smoke test
+
+on:
+  push:
+    branches:
+      - v3-real-data
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile Python files
+        run: |
+          python -m py_compile dashboard/app.py
+          python -m py_compile src/skillcorner_reference.py
+
+      - name: Validate real benchmark file
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          df = pd.read_csv("data/real/skillcorner_position_benchmarks.csv")
+          assert set(df["position"]) == {"CB", "FB", "CM", "W", "ST"}
+          required = {
+              "total_distance_p50_m",
+              "hsr_p50_m",
+              "sprint_p50_m",
+              "psv99_p50_kmh",
+          }
+          assert required.issubset(df.columns)
+          assert (df["n_players"] >= 1).all()
+          print(df[["position", "n_players", "total_matches"]].to_string(index=False))
+          PY
+
+      - name: Start Streamlit and check health
+        run: |
+          streamlit run dashboard/app.py --server.headless true --server.port 8501 > /tmp/streamlit.log 2>&1 &
+          APP_PID=$!
+          for i in {1..30}; do
+            if curl --fail --silent http://localhost:8501/_stcore/health; then
+              kill $APP_PID
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/streamlit.log
+          kill $APP_PID || true
+          exit 1
