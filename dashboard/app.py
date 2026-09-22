@@ -524,6 +524,19 @@ if page == "Performance Report":
     position_full = POSITION_LABELS.get(row["position"], row["position"])
     status_color = STATUS_COLORS.get(row["monitoring_status"], ACCENT)
 
+    real_ref = real_benchmarks[real_benchmarks["position"] == row["position"]]
+    if real_ref.empty:
+        st.error("No real match-demand reference is available for this position.")
+        st.stop()
+    real_ref = real_ref.iloc[0]
+
+    real_hsr_p25 = real_ref["hsr_p25_m"]
+    real_hsr_p50 = real_ref["hsr_p50_m"]
+    real_hsr_p90 = real_ref["hsr_p90_m"]
+    real_sprint_p25 = real_ref["sprint_p25_m"]
+    real_sprint_p50 = real_ref["sprint_p50_m"]
+    real_sprint_p90 = real_ref["sprint_p90_m"]
+
     render_html(
         f"""
         <div style="padding:6px 0 10px 0;">
@@ -657,6 +670,104 @@ if page == "Performance Report":
     fig.update_layout(showlegend=False, bargap=0.34)
     apply_plot_style(fig, 410)
     st.plotly_chart(fig, use_container_width=True)
+
+    section_header(
+        "Real match context",
+        "A-League 2024/25 positional reference from SkillCorner Open Data · context, not a training target",
+    )
+
+    match_context = pd.DataFrame(
+        {
+            "Metric": ["High-speed running", "Sprint"],
+            "Training": [row["training_hsr_m"], row["training_sprint_m"]],
+            "P25": [real_hsr_p25, real_sprint_p25],
+            "P50": [real_hsr_p50, real_sprint_p50],
+            "P90": [real_hsr_p90, real_sprint_p90],
+        }
+    )
+
+    mc1, mc2 = st.columns(2)
+    with mc1:
+        kpi_card(
+            "HIGH-SPEED RUNNING",
+            f"{row['training_hsr_m']:.0f} m",
+            f"real {position_full} median: {real_hsr_p50:.0f} m",
+            ACCENT,
+        )
+    with mc2:
+        kpi_card(
+            "SPRINT DISTANCE",
+            f"{row['training_sprint_m']:.0f} m",
+            f"real {position_full} median: {real_sprint_p50:.0f} m",
+            ACCENT,
+        )
+
+    fig = go.Figure()
+    for _, metric_row in match_context.iterrows():
+        fig.add_trace(
+            go.Scatter(
+                x=[metric_row["P25"], metric_row["P90"]],
+                y=[metric_row["Metric"], metric_row["Metric"]],
+                mode="lines",
+                line=dict(color=GRID, width=20),
+                hovertemplate=(
+                    "Real positional range: "
+                    + f"{metric_row['P25']:.0f}–{metric_row['P90']:.0f} m"
+                    + "<extra></extra>"
+                ),
+                showlegend=False,
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[metric_row["P50"]],
+                y=[metric_row["Metric"]],
+                mode="markers",
+                marker=dict(size=12, color=READY, line=dict(color=BG, width=2)),
+                hovertemplate="Real positional median: %{x:.0f} m<extra></extra>",
+                showlegend=False,
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[metric_row["Training"]],
+                y=[metric_row["Metric"]],
+                mode="markers",
+                marker=dict(size=16, color=ACCENT, symbol="diamond", line=dict(color=BG, width=2)),
+                hovertemplate="This training week: %{x:.0f} m<extra></extra>",
+                showlegend=False,
+            )
+        )
+
+    fig.update_layout(
+        title="Blue diamond = this training week · green dot = real positional median · grey band = P25–P90",
+        showlegend=False,
+    )
+    fig.update_xaxes(title="Metres")
+    fig.update_yaxes(title="")
+    apply_plot_style(fig, 285)
+    st.plotly_chart(fig, use_container_width=True)
+
+    hsr_ratio = row["training_hsr_m"] / real_hsr_p50
+    sprint_ratio = row["training_sprint_m"] / real_sprint_p50
+
+    render_html(
+        f"""
+        <div class="mr-insight" style="border-left-color:{ACCENT};">
+            <div class="mr-insight-title">WHAT THIS ADDS</div>
+            High-speed running accumulated across the week sits above the real {position_full.lower()} match median
+            ({hsr_ratio:.2f}×), while sprint distance sits below it ({sprint_ratio:.2f}×).
+            The useful signal is the contrast between the two speed qualities — not whether the week should equal one match.
+        </div>
+        """
+    )
+
+    st.caption(
+        f"Real reference: SkillCorner Open Data · Australian A-League 2024/25 · "
+        f"{int(real_ref['n_players'])} eligible {position_full.lower()} player-position samples · "
+        f"{int(real_ref['total_matches'])} matches represented. "
+        "Synthetic training data are compared with real match-demand distributions for context only."
+    )
 
     st.caption(
         "Synthetic training and wellness data. Monitoring logic is illustrative and supports staff review; "
