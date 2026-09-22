@@ -367,6 +367,48 @@ def player_interpretation(row):
     )
 
 
+def plain_language_takeaway(row):
+    """Return a short, non-technical explanation for the selected player/week."""
+    sprint = row["sprint_vs_baseline"] * 100
+    hsr = row["hsr_vs_baseline"] * 100
+    load = row["load_vs_baseline"] * 100
+    peak = row["peak_training_pct_vmax"]
+
+    if bool(row.get("planned_reduction", False)):
+        return (
+            "Lower exposure is expected here because the player is in a planned reduced-training "
+            "or reintegration scenario. The numbers still matter, but they should be read in context."
+        )
+
+    if row["monitoring_status"] == "Underexposed":
+        return (
+            f"The player completed {load:.0f}% of their usual overall training load, "
+            f"but only {sprint:.0f}% of their usual sprint exposure and {hsr:.0f}% of their usual "
+            f"high-speed running. Peak speed reached {peak:.0f}% of Vmax. "
+            "In plain English: the player trained enough overall, but not with the same high-speed stimulus."
+        )
+
+    if row["monitoring_status"] == "Monitor":
+        if row["load_vs_baseline"] > 1.20:
+            return (
+                f"High-speed exposure is broadly present, but total training load is {load:.0f}% "
+                "of the player's usual level. This is mainly a load-management review rather than a speed-exposure problem."
+            )
+        if row["wellness_delta"] <= -8:
+            return (
+                "External training exposure looks broadly acceptable, but the player's wellness is lower than usual. "
+                "That disagreement is the main reason to review the week."
+            )
+        return (
+            "Most exposure markers are close to the player's usual preparation, but one signal is outside "
+            "the normal range. This is a review flag, not a medical diagnosis."
+        )
+
+    return (
+        "The main preparation markers are broadly consistent with the player's usual pre-match training profile."
+    )
+
+
 def priority_rank(df):
     ranked = df.copy()
     status_rank = {"Underexposed": 0, "Monitor": 1, "Ready": 3}
@@ -383,12 +425,20 @@ def priority_rank(df):
 # ============================================================
 
 st.sidebar.markdown("### MATCH READY?\n**Football Performance Monitoring**")
-st.sidebar.caption("Sprint exposure · HSR · Training load · Match preparation")
+st.sidebar.caption("See who needs attention, understand why, and compare training exposure with match demands.")
 st.sidebar.divider()
+
+PAGE_LABELS = {
+    "Squad Overview": "Team overview",
+    "Player Analysis": "Player view",
+    "Exposure Map": "Team exposure map",
+    "Methodology": "How it works",
+}
 
 page = st.sidebar.radio(
     "Workspace",
     ["Squad Overview", "Player Analysis", "Exposure Map", "Methodology"],
+    format_func=lambda x: PAGE_LABELS[x],
 )
 
 monitoring_weeks = sorted(
@@ -439,8 +489,8 @@ render_html(
         <div class="mr-eyebrow">FOOTBALL PERFORMANCE · DATA SCIENCE</div>
         <div class="mr-title">Match Ready?</div>
         <div class="mr-subtitle">
-            A football performance monitoring environment combining reproducible synthetic training
-            exposure with a real external match-demand reference.
+            A simple decision-support view: what changed this week, why it matters,
+            and how the player's preparation compares with real match-demand context.
         </div>
     </div>
     """
@@ -455,8 +505,11 @@ week_df = snapshots[snapshots["week"] == selected_week].copy()
 
 if page == "Squad Overview":
     section_header(
-        "Squad Readiness",
-        f"MD-1 monitoring snapshot · Week {selected_week} · individual baselines, not population averages",
+        "Team overview",
+        f"Week {selected_week} · start with the priority queue, then use the table for detail",
+    )
+    st.caption(
+        "Ready = broadly aligned · Monitor = review the context · Underexposed = one or more speed-related exposures are clearly reduced."
     )
 
     counts = week_df["monitoring_status"].value_counts()
@@ -687,9 +740,17 @@ elif page == "Player Analysis":
     hsr_vs_real_p50 = row["training_hsr_m"] / real_hsr_p50
     sprint_vs_real_p50 = row["training_sprint_m"] / real_sprint_p50
 
-    left_card, right_card = st.columns([0.78, 1.45])
+    hsr_real_delta = (hsr_vs_real_p50 - 1) * 100
+    sprint_real_delta = (sprint_vs_real_p50 - 1) * 100
 
-    with left_card:
+    section_header(
+        "Player snapshot",
+        "Start here: what changed, why it matters, then open the technical detail only if you need it.",
+    )
+
+    identity_col, takeaway_col = st.columns([0.78, 1.45])
+
+    with identity_col:
         render_html(
             f"""
             <div class="mr-player-card">
@@ -697,355 +758,375 @@ elif page == "Player Analysis":
                 <div class="mr-player-name">{row['player_name']}</div>
                 <div class="mr-player-pos">{position_full}</div>
                 {status_badge(row['monitoring_status'])} &nbsp; {context_badge(row['training_context'])}
-
-                <div class="mr-reference-grid">
-                    <div class="mr-reference-item">
-                        <div class="mr-ref-label">INDIVIDUAL VMAX</div>
-                        <div class="mr-ref-value">{row['vmax_kmh']:.1f} km/h</div>
-                    </div>
-                    <div class="mr-reference-item">
-                        <div class="mr-ref-label">REAL ROLE P50 · DISTANCE</div>
-                        <div class="mr-ref-value">{real_distance_p50/1000:.1f} km</div>
-                    </div>
-                    <div class="mr-reference-item">
-                        <div class="mr-ref-label">REAL ROLE P50 · HSR</div>
-                        <div class="mr-ref-value">{real_hsr_p50:.0f} m</div>
-                    </div>
-                    <div class="mr-reference-item">
-                        <div class="mr-ref-label">REAL ROLE P50 · SPRINT</div>
-                        <div class="mr-ref-value">{real_sprint_p50:.0f} m</div>
-                    </div>
+                <div style="margin-top:18px;color:{MUTED};font-size:11px;line-height:1.55;">
+                    <b style="color:{TEXT};">How to read the status</b><br>
+                    Ready = broadly aligned · Monitor = review the context · Underexposed = one or more
+                    speed-related exposures are clearly lower than usual.
                 </div>
             </div>
             """
         )
 
-    with right_card:
-        section_header(
-            "Decision-Support Summary",
-            "A transparent interpretation generated from the same metrics shown below",
-        )
+    with takeaway_col:
         render_html(
             f"""
             <div class="mr-insight" style="border-left-color:{STATUS_COLORS.get(row['monitoring_status'], ACCENT)};">
-                <div class="mr-insight-title">WHAT CHANGED?</div>
-                {player_interpretation(row)}
+                <div class="mr-insight-title">ONE-MINUTE TAKEAWAY</div>
+                <div style="font-size:18px;line-height:1.55;font-weight:650;">
+                    {plain_language_takeaway(row)}
+                </div>
             </div>
             """
         )
         render_html(
             f"""
             <div class="mr-soft-panel">
-                <b style="color:{TEXT};">Context note</b><br><br>
+                <b style="color:{TEXT};">Staff context</b><br><br>
                 <span style="color:{MUTED};font-size:12px;line-height:1.5;">{row['context_note']}</span>
             </div>
             """
         )
 
-    section_header("Current Preparation", "Five dimensions to read together, not in isolation")
-    c1, c2, c3, c4, c5 = st.columns(5)
+    section_header(
+        "1 · What changed this week?",
+        "100% means the player's usual pre-match training week, based on the individual baseline.",
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         kpi_card(
-            "SPRINT EXPOSURE",
-            f"{row['sprint_vs_baseline'] * 100:.0f}%",
-            "vs individual baseline",
-            READY if row["sprint_vs_baseline"] >= 0.85 else MONITOR if row["sprint_vs_baseline"] >= 0.60 else UNDER,
+            "OVERALL TRAINING LOAD",
+            f"{row['load_vs_baseline'] * 100:.0f}%",
+            f"{abs(row['load_vs_baseline'] * 100 - 100):.0f}% {'above' if row['load_vs_baseline'] >= 1 else 'below'} usual",
+            ACCENT,
         )
     with c2:
         kpi_card(
-            "HSR EXPOSURE",
-            f"{row['hsr_vs_baseline'] * 100:.0f}%",
-            "vs individual baseline",
-            READY if row["hsr_vs_baseline"] >= 0.80 else MONITOR if row["hsr_vs_baseline"] >= 0.60 else UNDER,
+            "SPRINT EXPOSURE",
+            f"{row['sprint_vs_baseline'] * 100:.0f}%",
+            f"{abs(row['sprint_vs_baseline'] * 100 - 100):.0f}% {'above' if row['sprint_vs_baseline'] >= 1 else 'below'} usual",
+            READY if row["sprint_vs_baseline"] >= 0.85 else MONITOR if row["sprint_vs_baseline"] >= 0.60 else UNDER,
         )
     with c3:
         kpi_card(
-            "PEAK SPEED",
-            f"{row['peak_training_pct_vmax']:.0f}%",
-            "of individual Vmax",
-            READY if row["peak_training_pct_vmax"] >= 90 else MONITOR if row["peak_training_pct_vmax"] >= 85 else UNDER,
+            "HIGH-SPEED RUNNING",
+            f"{row['hsr_vs_baseline'] * 100:.0f}%",
+            f"{abs(row['hsr_vs_baseline'] * 100 - 100):.0f}% {'above' if row['hsr_vs_baseline'] >= 1 else 'below'} usual",
+            READY if row["hsr_vs_baseline"] >= 0.80 else MONITOR if row["hsr_vs_baseline"] >= 0.60 else UNDER,
         )
     with c4:
-        kpi_card("TRAINING LOAD", f"{row['load_vs_baseline'] * 100:.0f}%", "vs individual baseline", ACCENT)
-    with c5:
-        kpi_card("ALIGNMENT", f"{row['preparation_alignment']:.0f}", "preparation alignment · 0–100", PURPLE)
+        kpi_card(
+            "FASTEST SPEED REACHED",
+            f"{row['peak_training_pct_vmax']:.0f}% Vmax",
+            "share of the player's known individual maximum speed",
+            READY if row["peak_training_pct_vmax"] >= 90 else MONITOR if row["peak_training_pct_vmax"] >= 85 else UNDER,
+        )
 
     section_header(
-        "Real Match-Demand Context",
-        "Synthetic pre-match training exposure compared with a real SkillCorner positional distribution",
+        "2 · Why does this matter?",
+        "A similar total workload can contain a very different physical stimulus.",
     )
 
-    demand_left, demand_right = st.columns([0.9, 1.25])
-
-    with demand_left:
-        render_html(
-            f"""
-            <div class="mr-insight" style="border-left-color:{ACCENT};">
-                <div class="mr-insight-title">THE GAP</div>
-                <b>{position_full}</b> · real A-League 2024/25 positional reference<br><br>
-                This training week contains <b>{hsr_vs_real_p50:.2f}×</b> the role P50 for HSR
-                and <b>{sprint_vs_real_p50:.2f}×</b> the role P50 for sprint distance.<br><br>
-                The comparison is descriptive: a training week and a match are different exposure windows.
-                The useful signal is whether the stimulus mix is aligned across dimensions.
-            </div>
-            """
+    if row["monitoring_status"] == "Underexposed" and not bool(row["planned_reduction"]):
+        insight_title = "SAME LOAD. DIFFERENT STIMULUS."
+        insight_text = (
+            f"Overall load is {row['load_vs_baseline'] * 100:.0f}% of usual, while sprint exposure is "
+            f"{row['sprint_vs_baseline'] * 100:.0f}% and HSR is {row['hsr_vs_baseline'] * 100:.0f}%. "
+            "The player has done plenty of work, but the week contains much less high-speed work than their normal preparation."
         )
-
-        r1, r2 = st.columns(2)
-        with r1:
-            small_stat(
-                "LAST >90% VMAX",
-                format_days(row["days_since_90_pct_vmax"]),
-                "Recency at MD-1",
-            )
-        with r2:
-            small_stat(
-                "LAST >95% VMAX",
-                format_days(row["days_since_95_pct_vmax"]),
-                "Recency at MD-1",
-            )
-
-    with demand_right:
-        context = pd.DataFrame(
-            {
-                "Metric": ["HSR", "Sprint"],
-                "Training": [
-                    row["training_hsr_m"],
-                    row["training_sprint_m"],
-                ],
-                "P25": [
-                    real_ref["hsr_p25_m"],
-                    real_ref["sprint_p25_m"],
-                ],
-                "P50": [
-                    real_ref["hsr_p50_m"],
-                    real_ref["sprint_p50_m"],
-                ],
-                "P90": [
-                    real_ref["hsr_p90_m"],
-                    real_ref["sprint_p90_m"],
-                ],
-            }
+        insight_color = UNDER
+    elif bool(row["planned_reduction"]):
+        insight_title = "LOWER EXPOSURE, BUT PLANNED."
+        insight_text = (
+            "The numerical reduction is visible, but the training context says it is intentional. "
+            "This is why the dashboard keeps staff context next to the numbers."
         )
+        insight_color = PURPLE
+    elif row["monitoring_status"] == "Monitor":
+        insight_title = "REVIEW THE CONTEXT."
+        insight_text = plain_language_takeaway(row)
+        insight_color = MONITOR
+    else:
+        insight_title = "PREPARATION IS BROADLY ALIGNED."
+        insight_text = plain_language_takeaway(row)
+        insight_color = READY
 
-        fig = go.Figure()
-        for _, metric_row in context.iterrows():
-            fig.add_trace(
-                go.Scatter(
-                    x=[metric_row["P25"], metric_row["P90"]],
-                    y=[metric_row["Metric"], metric_row["Metric"]],
-                    mode="lines",
-                    line=dict(color=GRID, width=16),
-                    hoverinfo="skip",
-                    showlegend=False,
-                )
-            )
-            fig.add_trace(
-                go.Scatter(
-                    x=[metric_row["P50"]],
-                    y=[metric_row["Metric"]],
-                    mode="markers",
-                    marker=dict(size=12, color=READY, line=dict(color=BG, width=2)),
-                    name="Real P50",
-                    hovertemplate="Real P50: %{x:.0f} m<extra></extra>",
-                    showlegend=False,
-                )
-            )
-            fig.add_trace(
-                go.Scatter(
-                    x=[metric_row["Training"]],
-                    y=[metric_row["Metric"]],
-                    mode="markers",
-                    marker=dict(size=15, color=ACCENT, symbol="diamond", line=dict(color=BG, width=2)),
-                    name="Training week",
-                    hovertemplate="Training week: %{x:.0f} m<extra></extra>",
-                    showlegend=False,
-                )
-            )
-
-        fig.update_layout(
-            title="Training week vs real positional P25–P90",
-            showlegend=False,
-        )
-        fig.update_xaxes(title="Metres")
-        fig.update_yaxes(title="")
-        apply_plot_style(fig, 330)
-        st.plotly_chart(fig, use_container_width=True)
-
-    st.caption(
-        f"Real reference: SkillCorner Open Data · Australian A-League 2024/25 · "
-        f"{int(real_ref['n_players'])} eligible {position_full.lower()} player-position samples · "
-        f"{int(real_ref['total_matches'])} matches represented. Positional distributions are context, not targets."
+    render_html(
+        f"""
+        <div class="mr-insight" style="border-left-color:{insight_color};">
+            <div class="mr-insight-title">{insight_title}</div>
+            {insight_text}
+        </div>
+        """
     )
 
-    left, right = st.columns([1, 1.15])
+    section_header(
+        "3 · How does that compare with real match demands?",
+        "External context from SkillCorner A-League 2024/25 data. These values are references, not targets.",
+    )
 
-    with left:
-        section_header("Preparation Profile", "Current microcycle vs individual baseline")
-        profile = pd.DataFrame(
-            {
-                "Metric": ["Sprint", "HSR", "Training Load", "Distance"],
-                "Current": [
-                    row["sprint_vs_baseline"] * 100,
-                    row["hsr_vs_baseline"] * 100,
-                    row["load_vs_baseline"] * 100,
-                    row["distance_vs_baseline"] * 100,
-                ],
-            }
+    real1, real2 = st.columns(2)
+    with real1:
+        direction = "above" if hsr_real_delta >= 0 else "below"
+        kpi_card(
+            "HIGH-SPEED RUNNING VS ROLE MEDIAN",
+            f"{row['training_hsr_m']:.0f} m",
+            f"Real {position_full} P50: {real_hsr_p50:.0f} m · {abs(hsr_real_delta):.0f}% {direction}",
+            ACCENT,
         )
-        fig = go.Figure(
-            go.Bar(
-                x=profile["Current"],
-                y=profile["Metric"],
-                orientation="h",
-                marker=dict(
-                    color=[
-                        READY if value >= 85 else MONITOR if value >= 60 else UNDER
-                        for value in profile["Current"]
-                    ]
-                ),
-                text=[f"{v:.0f}%" for v in profile["Current"]],
-                textposition="outside",
-                hovertemplate="%{y}: %{x:.0f}%<extra></extra>",
-            )
+    with real2:
+        direction = "above" if sprint_real_delta >= 0 else "below"
+        kpi_card(
+            "SPRINT DISTANCE VS ROLE MEDIAN",
+            f"{row['training_sprint_m']:.0f} m",
+            f"Real {position_full} P50: {real_sprint_p50:.0f} m · {abs(sprint_real_delta):.0f}% {direction}",
+            ACCENT,
         )
-        fig.add_vline(x=100, line_dash="dash", line_color=WHITE, opacity=0.55)
-        fig.update_xaxes(
-            range=[0, max(135, profile["Current"].max() + 15)],
-            title="Individual baseline (%)",
-        )
-        fig.update_layout(showlegend=False)
-        apply_plot_style(fig, 390)
-        st.plotly_chart(fig, use_container_width=True)
 
-    with right:
-        section_header("Peak-Speed Exposure", "Weekly maximum training speed as % individual Vmax")
-        fig = go.Figure()
+    context = pd.DataFrame(
+        {
+            "Metric": ["HSR", "Sprint"],
+            "Training": [row["training_hsr_m"], row["training_sprint_m"]],
+            "P25": [real_ref["hsr_p25_m"], real_ref["sprint_p25_m"]],
+            "P50": [real_ref["hsr_p50_m"], real_ref["sprint_p50_m"]],
+            "P90": [real_ref["hsr_p90_m"], real_ref["sprint_p90_m"]],
+        }
+    )
+
+    fig = go.Figure()
+    for _, metric_row in context.iterrows():
         fig.add_trace(
             go.Scatter(
-                x=player_history["week"],
-                y=player_history["peak_training_pct_vmax"],
-                mode="lines+markers",
-                line=dict(color=ACCENT, width=3),
-                marker=dict(size=8, color=ACCENT),
-                hovertemplate="Week %{x}<br>% Vmax: %{y:.1f}%<extra></extra>",
-            )
-        )
-        fig.add_hrect(y0=90, y1=102, fillcolor=READY, opacity=0.04, line_width=0)
-        fig.add_hrect(y0=85, y1=90, fillcolor=MONITOR, opacity=0.06, line_width=0)
-        fig.add_hrect(y0=0, y1=85, fillcolor=UNDER, opacity=0.035, line_width=0)
-        fig.add_hline(y=90, line_dash="dash", line_color=READY, opacity=0.55)
-        fig.add_hline(y=85, line_dash="dash", line_color=MONITOR, opacity=0.55)
-        fig.add_trace(
-            go.Scatter(
-                x=[selected_week],
-                y=[row["peak_training_pct_vmax"]],
-                mode="markers",
-                marker=dict(
-                    size=17,
-                    color=STATUS_COLORS.get(row["monitoring_status"], ACCENT),
-                    line=dict(color=BG, width=3),
-                ),
+                x=[metric_row["P25"], metric_row["P90"]],
+                y=[metric_row["Metric"], metric_row["Metric"]],
+                mode="lines",
+                line=dict(color=GRID, width=18),
                 hoverinfo="skip",
                 showlegend=False,
             )
         )
-        fig.update_yaxes(range=[65, 102], title="% individual Vmax")
-        fig.update_xaxes(title="Week", dtick=1)
-        fig.update_layout(showlegend=False)
-        apply_plot_style(fig, 390)
-        st.plotly_chart(fig, use_container_width=True)
+        fig.add_trace(
+            go.Scatter(
+                x=[metric_row["P50"]],
+                y=[metric_row["Metric"]],
+                mode="markers",
+                marker=dict(size=12, color=READY, line=dict(color=BG, width=2)),
+                hovertemplate="Real positional median: %{x:.0f} m<extra></extra>",
+                showlegend=False,
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[metric_row["Training"]],
+                y=[metric_row["Metric"]],
+                mode="markers+text",
+                text=["Training week"],
+                textposition="middle right",
+                textfont=dict(color=TEXT, size=11),
+                marker=dict(size=16, color=ACCENT, symbol="diamond", line=dict(color=BG, width=2)),
+                hovertemplate="Training week: %{x:.0f} m<extra></extra>",
+                showlegend=False,
+            )
+        )
 
-    section_header("Microcycle Breakdown", "Where did high-speed exposure occur inside the week?")
-    training_codes = ["MD-4", "MD-3", "MD-2", "MD-1"]
-    current_daily = daily[
-        (daily["player_id"] == selected_player)
-        & (daily["week"] == selected_week)
-        & (daily["md_code"].isin(training_codes))
-    ].copy()
-    current_daily["md_code"] = pd.Categorical(
-        current_daily["md_code"], categories=training_codes, ordered=True
+    fig.update_layout(
+        title="Blue diamond = this training week · green dot = real role median · grey band = P25–P90",
+        showlegend=False,
     )
-    current_daily = current_daily.sort_values("md_code")
+    fig.update_xaxes(title="Metres")
+    fig.update_yaxes(title="")
+    apply_plot_style(fig, 300)
+    st.plotly_chart(fig, use_container_width=True)
 
-    baseline_daily = (
-        daily[
+    st.caption(
+        f"SkillCorner reference: {int(real_ref['n_players'])} eligible {position_full.lower()} player-position samples, "
+        f"{int(real_ref['total_matches'])} matches represented. A full training week and one match are different exposure windows; "
+        "this comparison is used only to add real-world context."
+    )
+
+    with st.expander("What do these terms mean?"):
+        st.markdown(
+            """
+            **Baseline** — the player's own usual pre-match training profile, built from the first three weeks.  
+            **HSR (high-speed running)** — running at high speed below the sprint threshold.  
+            **Sprint exposure** — distance covered at sprint speed.  
+            **Vmax** — the player's individual maximum speed.  
+            **P50** — the median value in the real positional reference; half the observations are below it and half above it.  
+            **P25–P90** — a wider reference range showing how much real positional demands vary.
+            """
+        )
+
+    with st.expander("4 · Technical detail — weekly trends, microcycle and wellness", expanded=False):
+        left, right = st.columns([1, 1.15])
+
+        with left:
+            section_header("Preparation Profile", "Current microcycle vs individual baseline")
+            profile = pd.DataFrame(
+                {
+                    "Metric": ["Sprint", "HSR", "Training Load", "Distance"],
+                    "Current": [
+                        row["sprint_vs_baseline"] * 100,
+                        row["hsr_vs_baseline"] * 100,
+                        row["load_vs_baseline"] * 100,
+                        row["distance_vs_baseline"] * 100,
+                    ],
+                }
+            )
+            fig = go.Figure(
+                go.Bar(
+                    x=profile["Current"],
+                    y=profile["Metric"],
+                    orientation="h",
+                    marker=dict(
+                        color=[
+                            READY if value >= 85 else MONITOR if value >= 60 else UNDER
+                            for value in profile["Current"]
+                        ]
+                    ),
+                    text=[f"{v:.0f}%" for v in profile["Current"]],
+                    textposition="outside",
+                    hovertemplate="%{y}: %{x:.0f}%<extra></extra>",
+                )
+            )
+            fig.add_vline(x=100, line_dash="dash", line_color=WHITE, opacity=0.55)
+            fig.update_xaxes(
+                range=[0, max(135, profile["Current"].max() + 15)],
+                title="Individual baseline (%)",
+            )
+            fig.update_layout(showlegend=False)
+            apply_plot_style(fig, 390)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with right:
+            section_header("Peak-Speed Exposure", "Weekly maximum training speed as % individual Vmax")
+            fig = go.Figure()
+            fig.add_trace(
+                go.Scatter(
+                    x=player_history["week"],
+                    y=player_history["peak_training_pct_vmax"],
+                    mode="lines+markers",
+                    line=dict(color=ACCENT, width=3),
+                    marker=dict(size=8, color=ACCENT),
+                    hovertemplate="Week %{x}<br>% Vmax: %{y:.1f}%<extra></extra>",
+                )
+            )
+            fig.add_hrect(y0=90, y1=102, fillcolor=READY, opacity=0.04, line_width=0)
+            fig.add_hrect(y0=85, y1=90, fillcolor=MONITOR, opacity=0.06, line_width=0)
+            fig.add_hrect(y0=0, y1=85, fillcolor=UNDER, opacity=0.035, line_width=0)
+            fig.add_hline(y=90, line_dash="dash", line_color=READY, opacity=0.55)
+            fig.add_hline(y=85, line_dash="dash", line_color=MONITOR, opacity=0.55)
+            fig.add_trace(
+                go.Scatter(
+                    x=[selected_week],
+                    y=[row["peak_training_pct_vmax"]],
+                    mode="markers",
+                    marker=dict(
+                        size=17,
+                        color=STATUS_COLORS.get(row["monitoring_status"], ACCENT),
+                        line=dict(color=BG, width=3),
+                    ),
+                    hoverinfo="skip",
+                    showlegend=False,
+                )
+            )
+            fig.update_yaxes(range=[65, 102], title="% individual Vmax")
+            fig.update_xaxes(title="Week", dtick=1)
+            fig.update_layout(showlegend=False)
+            apply_plot_style(fig, 390)
+            st.plotly_chart(fig, use_container_width=True)
+
+        section_header("Microcycle Breakdown", "Where did high-speed exposure occur inside the week?")
+        training_codes = ["MD-4", "MD-3", "MD-2", "MD-1"]
+        current_daily = daily[
             (daily["player_id"] == selected_player)
-            & (daily["week"].isin([1, 2, 3]))
+            & (daily["week"] == selected_week)
             & (daily["md_code"].isin(training_codes))
-        ]
-        .groupby("md_code", as_index=False, observed=False)
-        .agg(
-            baseline_sprint=("sprint_distance_m", "median"),
-            baseline_hsr=("hsr_m", "median"),
-            baseline_speed=("percent_vmax", "median"),
+        ].copy()
+        current_daily["md_code"] = pd.Categorical(
+            current_daily["md_code"], categories=training_codes, ordered=True
         )
-    )
-    micro = current_daily.merge(baseline_daily, on="md_code", how="left")
+        current_daily = current_daily.sort_values("md_code")
 
-    m1, m2 = st.columns(2)
-    with m1:
-        fig = go.Figure()
-        fig.add_trace(go.Bar(x=micro["md_code"], y=micro["baseline_sprint"], name="Baseline", marker_color=GRID))
-        fig.add_trace(go.Bar(x=micro["md_code"], y=micro["sprint_distance_m"], name=f"Week {selected_week}", marker_color=ACCENT))
-        fig.update_layout(title="Sprint distance", barmode="group", legend=dict(orientation="h", y=1.12))
-        fig.update_yaxes(title="Metres")
-        apply_plot_style(fig, 350)
-        st.plotly_chart(fig, use_container_width=True)
-
-    with m2:
-        fig = go.Figure()
-        fig.add_trace(go.Bar(x=micro["md_code"], y=micro["baseline_hsr"], name="Baseline", marker_color=GRID))
-        fig.add_trace(go.Bar(x=micro["md_code"], y=micro["hsr_m"], name=f"Week {selected_week}", marker_color=ACCENT))
-        fig.update_layout(title="High-speed running", barmode="group", legend=dict(orientation="h", y=1.12))
-        fig.update_yaxes(title="Metres")
-        apply_plot_style(fig, 350)
-        st.plotly_chart(fig, use_container_width=True)
-
-    section_header("Load & Wellness Context", "External exposure should not be interpreted from a single signal")
-    c1, c2 = st.columns(2)
-
-    with c1:
-        fig = go.Figure()
-        fig.add_trace(
-            go.Scatter(
-                x=player_history["week"],
-                y=player_history["md1_wellness"],
-                mode="lines+markers",
-                name="MD-1 Wellness",
-                line=dict(color=READY, width=3),
+        baseline_daily = (
+            daily[
+                (daily["player_id"] == selected_player)
+                & (daily["week"].isin([1, 2, 3]))
+                & (daily["md_code"].isin(training_codes))
+            ]
+            .groupby("md_code", as_index=False, observed=False)
+            .agg(
+                baseline_sprint=("sprint_distance_m", "median"),
+                baseline_hsr=("hsr_m", "median"),
+                baseline_speed=("percent_vmax", "median"),
             )
         )
-        fig.add_trace(
-            go.Scatter(
-                x=player_history["week"],
-                y=player_history["baseline_md1_wellness"],
-                mode="lines",
-                name="Baseline",
-                line=dict(color=MUTED, dash="dash"),
-            )
-        )
-        fig.update_layout(title="Wellness trend", legend=dict(orientation="h", y=1.12))
-        fig.update_yaxes(title="Wellness score")
-        apply_plot_style(fig, 335)
-        st.plotly_chart(fig, use_container_width=True)
+        micro = current_daily.merge(baseline_daily, on="md_code", how="left")
 
-    with c2:
-        fig = go.Figure()
-        fig.add_trace(
-            go.Bar(
-                x=player_history["week"],
-                y=player_history["load_vs_baseline"] * 100,
-                marker_color=ACCENT,
-                hovertemplate="Week %{x}<br>Load: %{y:.0f}%<extra></extra>",
+        m1, m2 = st.columns(2)
+        with m1:
+            fig = go.Figure()
+            fig.add_trace(go.Bar(x=micro["md_code"], y=micro["baseline_sprint"], name="Baseline", marker_color=GRID))
+            fig.add_trace(go.Bar(x=micro["md_code"], y=micro["sprint_distance_m"], name=f"Week {selected_week}", marker_color=ACCENT))
+            fig.update_layout(title="Sprint distance", barmode="group", legend=dict(orientation="h", y=1.12))
+            fig.update_yaxes(title="Metres")
+            apply_plot_style(fig, 350)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with m2:
+            fig = go.Figure()
+            fig.add_trace(go.Bar(x=micro["md_code"], y=micro["baseline_hsr"], name="Baseline", marker_color=GRID))
+            fig.add_trace(go.Bar(x=micro["md_code"], y=micro["hsr_m"], name=f"Week {selected_week}", marker_color=ACCENT))
+            fig.update_layout(title="High-speed running", barmode="group", legend=dict(orientation="h", y=1.12))
+            fig.update_yaxes(title="Metres")
+            apply_plot_style(fig, 350)
+            st.plotly_chart(fig, use_container_width=True)
+
+        section_header("Load & Wellness Context", "External exposure should not be interpreted from a single signal")
+        c1, c2 = st.columns(2)
+
+        with c1:
+            fig = go.Figure()
+            fig.add_trace(
+                go.Scatter(
+                    x=player_history["week"],
+                    y=player_history["md1_wellness"],
+                    mode="lines+markers",
+                    name="MD-1 Wellness",
+                    line=dict(color=READY, width=3),
+                )
             )
-        )
-        fig.add_hline(y=100, line_dash="dash", line_color=WHITE, opacity=0.5)
-        fig.add_hline(y=120, line_dash="dot", line_color=MONITOR, opacity=0.55)
-        fig.update_layout(title="Training load vs individual baseline", showlegend=False)
-        fig.update_yaxes(title="Baseline (%)")
-        apply_plot_style(fig, 335)
-        st.plotly_chart(fig, use_container_width=True)
+            fig.add_trace(
+                go.Scatter(
+                    x=player_history["week"],
+                    y=player_history["baseline_md1_wellness"],
+                    mode="lines",
+                    name="Baseline",
+                    line=dict(color=MUTED, dash="dash"),
+                )
+            )
+            fig.update_layout(title="Wellness trend", legend=dict(orientation="h", y=1.12))
+            fig.update_yaxes(title="Wellness score")
+            apply_plot_style(fig, 335)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with c2:
+            fig = go.Figure()
+            fig.add_trace(
+                go.Bar(
+                    x=player_history["week"],
+                    y=player_history["load_vs_baseline"] * 100,
+                    marker_color=ACCENT,
+                    hovertemplate="Week %{x}<br>Load: %{y:.0f}%<extra></extra>",
+                )
+            )
+            fig.add_hline(y=100, line_dash="dash", line_color=WHITE, opacity=0.5)
+            fig.add_hline(y=120, line_dash="dot", line_color=MONITOR, opacity=0.55)
+            fig.update_layout(title="Training load vs individual baseline", showlegend=False)
+            fig.update_yaxes(title="Baseline (%)")
+            apply_plot_style(fig, 335)
+            st.plotly_chart(fig, use_container_width=True)
+
+
 
 
 # ============================================================
@@ -1175,8 +1256,8 @@ elif page == "Exposure Map":
 
 elif page == "Methodology":
     section_header(
-        "Methodology",
-        "Transparent assumptions, hybrid synthetic/real data design and limits of interpretation",
+        "How it works",
+        "The data, the comparison logic and the limits — explained transparently.",
     )
 
     a, b = st.columns(2)
