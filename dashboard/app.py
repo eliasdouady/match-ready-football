@@ -1,3 +1,4 @@
+# Match Ready? V3 deployment marker — 2026-09-22
 from pathlib import Path
 from textwrap import dedent
 
