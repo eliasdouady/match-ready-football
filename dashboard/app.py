@@ -594,7 +594,7 @@ if page == "Performance Report":
 
     render_html(
         f"""
-        <div style="padding:2px 0 7px 0;">
+        <div style="padding:28px 0 9px 0;">
             <div style="color:{MUTED};font-size:9px;font-weight:800;letter-spacing:.14em;">
                 MATCH READY? · PERFORMANCE REPORT
             </div>
