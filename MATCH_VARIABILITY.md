@@ -68,6 +68,12 @@ Position-level P10/P25/P50/P75/P90 distributions across real match performances.
 Within-player variability for real players appearing in at least two eligible matches
 in the sample.
 
+The dashboard also summarises the median within-player coefficient of variation (CV)
+by position. This is used to show, in a compact way, how much the same player's HSR
+and sprint output can change from fixture to fixture. The individual repeated-player
+example remains visible so the aggregate variability statistic is not presented without
+a concrete case.
+
 ## Interpretation
 
 These data are used as **external context**, not as prescribed training targets.

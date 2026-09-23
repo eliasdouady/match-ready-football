@@ -817,6 +817,15 @@ if page == "Performance Report":
     ].sort_values(["n_matches", "player_name"], ascending=[False, True])
     repeated_example = repeated_examples.iloc[0] if not repeated_examples.empty else None
 
+    if repeated_examples.empty:
+        repeated_hsr_cv_median = np.nan
+        repeated_sprint_cv_median = np.nan
+        repeated_player_count = 0
+    else:
+        repeated_hsr_cv_median = float(repeated_examples["hsr_p90_cv"].median() * 100)
+        repeated_sprint_cv_median = float(repeated_examples["sprint_p90_cv"].median() * 100)
+        repeated_player_count = int(len(repeated_examples))
+
     header_left, header_right = st.columns([1.55, 0.65], gap="medium")
 
     with header_left:
@@ -1116,6 +1125,31 @@ if page == "Performance Report":
     apply_plot_style(fig, 255)
     st.plotly_chart(fig, use_container_width=True)
 
+    if repeated_player_count:
+        render_html(
+            f"""
+            <div class="mr-context-strip">
+                <div class="mr-context-chip">
+                    <div class="mr-context-chip-label">SAME-PLAYER HSR VARIATION</div>
+                    <div class="mr-context-chip-value">~{repeated_hsr_cv_median:.0f}% median CV</div>
+                </div>
+                <div class="mr-context-chip">
+                    <div class="mr-context-chip-label">SAME-PLAYER SPRINT VARIATION</div>
+                    <div class="mr-context-chip-value">~{repeated_sprint_cv_median:.0f}% median CV</div>
+                </div>
+                <div class="mr-context-chip">
+                    <div class="mr-context-chip-label">REPEATED PLAYERS</div>
+                    <div class="mr-context-chip-value">{repeated_player_count} players · ≥2 matches</div>
+                </div>
+            </div>
+            <div class="mr-staff-check">
+                <b>Fixture variability:</b> In this open sample, sprint output varies more from match to match
+                than HSR for the same {position_full.lower()} players. A single positional average is therefore
+                a useful anchor, not a complete expectation for every fixture.
+            </div>
+            """
+        )
+
     hsr_band = match_variability_band(row["training_hsr_m"], match_ref, "hsr")
     sprint_band = match_variability_band(row["training_sprint_m"], match_ref, "sprint")
 
@@ -1137,7 +1171,8 @@ if page == "Performance Report":
             <div class="mr-insight-title">WHAT THE VARIABILITY ADDS</div>
             This training week sits <b>{hsr_band}</b> for HSR and <b>{sprint_band}</b> for sprint
             when compared with real {position_full.lower()} match performances.
-            A single positional average would hide this spread.
+            The match range — and the same-player variation above — show why one positional average
+            should be treated as context rather than a fixed target.
         </div>
         {example_html}
         <div class="mr-report-note">
