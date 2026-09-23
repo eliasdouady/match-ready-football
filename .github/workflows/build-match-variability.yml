@@ -1,0 +1,50 @@
+name: Build real match variability
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/skillcorner_match_variability.py"
+      - ".github/workflows/build-match-variability.yml"
+      - "MATCH_VARIABILITY.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout analysis branch
+        uses: actions/checkout@v4
+        with:
+          ref: match-variability-v1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install analysis dependencies
+        run: pip install pandas numpy
+
+      - name: Build SkillCorner player-match variability
+        run: python src/skillcorner_match_variability.py
+
+      - name: Commit derived real-data tables
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/real/skillcorner_player_match_metrics.csv
+          git add data/real/skillcorner_match_variability.csv
+          git add data/real/skillcorner_repeated_player_variability.csv
+          if git diff --cached --quiet; then
+            echo "No derived-data changes."
+          else
+            git commit -m "Build SkillCorner match-to-match variability"
+            git push origin HEAD:match-variability-v1
+          fi

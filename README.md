@@ -49,11 +49,14 @@ Goalkeepers are intentionally excluded because their physical demands require a 
 
 ### Real match-demand reference
 
-The project uses season-level SkillCorner physical aggregates for the Australian A-League 2024/25. For each position group, Match Ready? stores P25, P50, P75 and P90 for total distance, HSR, sprint distance and PSV-99.
+The project now uses two complementary SkillCorner layers:
 
-This portfolio processing step keeps player-position samples with at least five matches and no failed physical quality checks.
+1. **Season-level positional aggregates** for broad positional context.
+2. **10-match broadcast-tracking sample** for real player-match variability.
 
-See [DATA_SOURCES.md](DATA_SOURCES.md) for provenance, processing choices and limitations.
+From the tracking sample, Match Ready? derives eligible player-match HSR and sprint volumes, normalises match volumes to 90 minutes, and stores P10/P25/P50/P75/P90 distributions by position. It also measures within-player variability when the same real player appears in multiple eligible matches.
+
+See [DATA_SOURCES.md](DATA_SOURCES.md) and [MATCH_VARIABILITY.md](MATCH_VARIABILITY.md) for provenance, processing choices and limitations.
 
 ## Designed scenarios
 
@@ -101,18 +104,21 @@ The index is an interface aid for this synthetic portfolio project. It is **not*
 
 ## Real match-demand lens
 
-The Player Analysis workspace compares the synthetic pre-match training week with real positional distributions from SkillCorner Open Data.
+The compact Performance Report now compares the synthetic pre-match training week with **real match-to-match distributions** derived from the SkillCorner tracking sample.
 
-The dashboard shows the positional P25–P90 range and the P50 reference for HSR and sprint distance. These are contextual benchmarks, not prescribed training targets. A full training week and a single match are different exposure windows; the comparison is used to inspect the stimulus mix across dimensions.
+For HSR and sprint distance, the dashboard shows the real match median together with the middle 50% and wider P10–P90 range. It also surfaces a repeated-player example to demonstrate that the same player's physical demand can change materially from one fixture to another.
+
+These are contextual benchmarks, not prescribed training targets. A full training week and a single match are different exposure windows; the comparison is used to inspect the stimulus mix and the range of real match demands.
 
 ## Dashboard
 
-The Streamlit app contains four workspaces:
+The Streamlit app contains five workspaces:
 
-1. **Squad Overview** — status distribution, priority queue and squad monitoring board
-2. **Player Analysis** — player card, exposure profile, match-demand lens, microcycle and wellness/load context
-3. **Exposure Map** — interactive squad-level sprint/HSR positioning
-4. **Methodology** — assumptions, monitoring rules and designed scenarios
+1. **Performance Report** — compact, staff-facing player report with personal baseline, football role context and real match variability
+2. **Squad Overview** — status distribution, priority queue and squad monitoring board
+3. **Player Analysis** — deeper player trends, microcycle and wellness/load context
+4. **Exposure Map** — interactive squad-level sprint/HSR positioning
+5. **Methodology** — assumptions, monitoring rules and designed scenarios
 
 ## Project structure
 
@@ -130,6 +136,7 @@ match-ready-football/
 │   ├── data_generation.py
 │   ├── metrics.py
 │   ├── skillcorner_reference.py
+│   ├── skillcorner_match_variability.py
 │   └── visuals.py
 ├── .streamlit/
 │   └── config.toml
@@ -160,6 +167,8 @@ If the data and visuals are already present, only the last command is required.
 
 ## Important limitation
 
-Training and wellness data are synthetic; the external match-demand reference is real SkillCorner Open Data. The current real-data layer uses season-level player-position aggregates, so it captures positional variation across players but not the complete fixture-to-fixture distribution of one player.
+Training and wellness data are synthetic; the external match-demand layers are real SkillCorner Open Data.
+
+The match-to-match layer is based on a **10-match open tracking sample**, so it demonstrates fixture variability but should not be treated as a complete league distribution. Tracking-derived metrics also depend on transparent smoothing and quality-control choices documented in MATCH_VARIABILITY.md.
 
 Monitoring thresholds are transparent portfolio heuristics created to demonstrate a workflow and interface. The project does not provide medical diagnosis, injury prediction or return-to-play clearance.
