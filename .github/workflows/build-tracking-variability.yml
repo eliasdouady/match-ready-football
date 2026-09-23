@@ -7,7 +7,16 @@ on:
     paths:
       - "src/skillcorner_tracking_variability.py"
       - ".github/workflows/build-tracking-variability.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/skillcorner_tracking_variability.py"
+      - ".github/workflows/build-tracking-variability.yml"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -52,7 +61,16 @@ jobs:
           print(var.to_string(index=False))
           PY
 
-      - name: Commit generated summaries
+      - name: Upload generated summaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: skillcorner-tracking-variability
+          path: |
+            data/real/skillcorner_tracking_player_matches.csv
+            data/real/skillcorner_tracking_variability.csv
+
+      - name: Commit generated summaries on tracking branch
+        if: github.event_name == 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
