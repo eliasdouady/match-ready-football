@@ -358,11 +358,35 @@ def load_data():
     real_benchmarks = pd.read_csv(
         REAL_DIR / "skillcorner_position_benchmarks.csv"
     )
-    return sessions, players, snapshots, daily, team, real_benchmarks
+    match_variability = pd.read_csv(
+        REAL_DIR / "skillcorner_match_variability.csv"
+    )
+    repeated_variability = pd.read_csv(
+        REAL_DIR / "skillcorner_repeated_player_variability.csv"
+    )
+    return (
+        sessions,
+        players,
+        snapshots,
+        daily,
+        team,
+        real_benchmarks,
+        match_variability,
+        repeated_variability,
+    )
 
 
 try:
-    sessions, players, snapshots, daily, team, real_benchmarks = load_data()
+    (
+        sessions,
+        players,
+        snapshots,
+        daily,
+        team,
+        real_benchmarks,
+        match_variability,
+        repeated_variability,
+    ) = load_data()
 except FileNotFoundError:
     st.error(
         "Processed data not found. Run `python src/data_generation.py` and "
@@ -547,6 +571,27 @@ def plain_language_takeaway(row):
     return (
         "The main preparation markers are broadly consistent with the player's usual pre-match training profile."
     )
+
+
+def match_variability_band(value, ref, prefix):
+    """Describe where a value sits inside an empirical match distribution."""
+    p10 = float(ref[f"{prefix}_p10"])
+    p25 = float(ref[f"{prefix}_p25"])
+    p50 = float(ref[f"{prefix}_p50"])
+    p75 = float(ref[f"{prefix}_p75"])
+    p90 = float(ref[f"{prefix}_p90"])
+
+    if value < p10:
+        return "below P10"
+    if value < p25:
+        return "between P10 and P25"
+    if value < p50:
+        return "between P25 and P50"
+    if value < p75:
+        return "between P50 and P75"
+    if value < p90:
+        return "between P75 and P90"
+    return "above P90"
 
 
 def position_report_profile(position):
@@ -761,6 +806,17 @@ if page == "Performance Report":
     real_sprint_p50 = real_ref["sprint_p50_m"]
     real_sprint_p90 = real_ref["sprint_p90_m"]
 
+    match_ref = match_variability[match_variability["position"] == row["position"]]
+    if match_ref.empty:
+        st.error("No match-to-match reference is available for this position.")
+        st.stop()
+    match_ref = match_ref.iloc[0]
+
+    repeated_examples = repeated_variability[
+        repeated_variability["position"] == row["position"]
+    ].sort_values(["n_matches", "player_name"], ascending=[False, True])
+    repeated_example = repeated_examples.iloc[0] if not repeated_examples.empty else None
+
     header_left, header_right = st.columns([1.55, 0.65], gap="medium")
 
     with header_left:
@@ -934,49 +990,79 @@ if page == "Performance Report":
     st.plotly_chart(fig, use_container_width=True)
 
     report_section_header(
-        "Real match context",
-        f"{position_full} reference · SkillCorner Open Data · A-League 2024/25",
+        "Real match variability",
+        f"{position_full} · SkillCorner Open Data · 10 A-League tracking matches · volumes normalised to 90 min",
     )
 
-    hsr_ratio = row["training_hsr_m"] / real_hsr_p50
-    sprint_ratio = row["training_sprint_m"] / real_sprint_p50
+    mv_hsr_p10 = float(match_ref["hsr_p10"])
+    mv_hsr_p25 = float(match_ref["hsr_p25"])
+    mv_hsr_p50 = float(match_ref["hsr_p50"])
+    mv_hsr_p75 = float(match_ref["hsr_p75"])
+    mv_hsr_p90 = float(match_ref["hsr_p90"])
 
-    mc1, mc2 = st.columns(2)
-    with mc1:
+    mv_sprint_p10 = float(match_ref["sprint_p10"])
+    mv_sprint_p25 = float(match_ref["sprint_p25"])
+    mv_sprint_p50 = float(match_ref["sprint_p50"])
+    mv_sprint_p75 = float(match_ref["sprint_p75"])
+    mv_sprint_p90 = float(match_ref["sprint_p90"])
+
+    hsr_match_ratio = row["training_hsr_m"] / mv_hsr_p50
+    sprint_match_ratio = row["training_sprint_m"] / mv_sprint_p50
+
+    mv1, mv2 = st.columns(2)
+    with mv1:
         report_kpi_card(
-            "HIGH-SPEED RUNNING",
-            f"{row['training_hsr_m']:.0f} m",
-            f"real {position_full} median: {real_hsr_p50:.0f} m · {hsr_ratio:.2f}×",
+            "REAL MATCH HSR · MEDIAN",
+            f"{mv_hsr_p50:.0f} m / 90",
+            f"middle 50%: {mv_hsr_p25:.0f}–{mv_hsr_p75:.0f} m · training week: {row['training_hsr_m']:.0f} m",
             ACCENT,
         )
-    with mc2:
+    with mv2:
         report_kpi_card(
-            "SPRINT DISTANCE",
-            f"{row['training_sprint_m']:.0f} m",
-            f"real {position_full} median: {real_sprint_p50:.0f} m · {sprint_ratio:.2f}×",
+            "REAL MATCH SPRINT · MEDIAN",
+            f"{mv_sprint_p50:.0f} m / 90",
+            f"middle 50%: {mv_sprint_p25:.0f}–{mv_sprint_p75:.0f} m · training week: {row['training_sprint_m']:.0f} m",
             ACCENT,
         )
 
     match_context = pd.DataFrame(
         {
             "Metric": ["High-speed running", "Sprint"],
-            "Training_pct": [hsr_ratio * 100, sprint_ratio * 100],
-            "P25_pct": [real_hsr_p25 / real_hsr_p50 * 100, real_sprint_p25 / real_sprint_p50 * 100],
-            "P90_pct": [real_hsr_p90 / real_hsr_p50 * 100, real_sprint_p90 / real_sprint_p50 * 100],
+            "Training_pct": [hsr_match_ratio * 100, sprint_match_ratio * 100],
+            "P10_pct": [mv_hsr_p10 / mv_hsr_p50 * 100, mv_sprint_p10 / mv_sprint_p50 * 100],
+            "P25_pct": [mv_hsr_p25 / mv_hsr_p50 * 100, mv_sprint_p25 / mv_sprint_p50 * 100],
+            "P75_pct": [mv_hsr_p75 / mv_hsr_p50 * 100, mv_sprint_p75 / mv_sprint_p50 * 100],
+            "P90_pct": [mv_hsr_p90 / mv_hsr_p50 * 100, mv_sprint_p90 / mv_sprint_p50 * 100],
         }
     )
 
     fig = go.Figure()
     for _, metric_row in match_context.iterrows():
+        # Outer band = P10–P90 across real player-match performances.
         fig.add_trace(
             go.Scatter(
-                x=[metric_row["P25_pct"], metric_row["P90_pct"]],
+                x=[metric_row["P10_pct"], metric_row["P90_pct"]],
                 y=[metric_row["Metric"], metric_row["Metric"]],
                 mode="lines",
-                line=dict(color=GRID, width=20),
+                line=dict(color=GRID, width=18),
                 hovertemplate=(
-                    "Real positional P25–P90: "
-                    + f"{metric_row['P25_pct']:.0f}%–{metric_row['P90_pct']:.0f}% of P50"
+                    "Real match P10–P90: "
+                    + f"{metric_row['P10_pct']:.0f}%–{metric_row['P90_pct']:.0f}% of median"
+                    + "<extra></extra>"
+                ),
+                showlegend=False,
+            )
+        )
+        # Inner band = middle 50%.
+        fig.add_trace(
+            go.Scatter(
+                x=[metric_row["P25_pct"], metric_row["P75_pct"]],
+                y=[metric_row["Metric"], metric_row["Metric"]],
+                mode="lines",
+                line=dict(color="#526171", width=9),
+                hovertemplate=(
+                    "Real match P25–P75: "
+                    + f"{metric_row['P25_pct']:.0f}%–{metric_row['P75_pct']:.0f}% of median"
                     + "<extra></extra>"
                 ),
                 showlegend=False,
@@ -987,8 +1073,8 @@ if page == "Performance Report":
                 x=[100],
                 y=[metric_row["Metric"]],
                 mode="markers",
-                marker=dict(size=12, color=READY, line=dict(color=BG, width=2)),
-                hovertemplate="Real positional median (P50)<extra></extra>",
+                marker=dict(size=11, color=READY, line=dict(color=BG, width=2)),
+                hovertemplate="Real match median (P50)<extra></extra>",
                 showlegend=False,
             )
         )
@@ -1001,46 +1087,64 @@ if page == "Performance Report":
                 textposition="middle right",
                 textfont=dict(color=TEXT, size=11),
                 marker=dict(size=16, color=ACCENT, symbol="diamond", line=dict(color=BG, width=2)),
-                hovertemplate="This training week: %{x:.0f}% of real P50<extra></extra>",
+                hovertemplate="Training week: %{x:.0f}% of real match median<extra></extra>",
                 showlegend=False,
             )
         )
 
-    x_min = max(40, float(match_context[["P25_pct", "Training_pct"]].min().min()) - 15)
-    x_max = max(175, float(match_context[["P90_pct", "Training_pct"]].max().max()) + 15)
+    x_min = max(35, float(match_context[["P10_pct", "Training_pct"]].min().min()) - 12)
+    x_max = max(180, float(match_context[["P90_pct", "Training_pct"]].max().max()) + 12)
 
     fig.add_vline(
         x=100,
         line_dash="dash",
         line_color=READY,
-        opacity=0.45,
-        annotation_text="Real role median",
+        opacity=0.42,
+        annotation_text="Real match median",
         annotation_position="top",
     )
     fig.update_layout(
-        title="Training week vs real positional match median",
+        title="Training week vs the real match-to-match range",
         showlegend=False,
     )
     fig.update_xaxes(
-        title="Real positional median = 100%",
+        title="Real match median = 100%",
         range=[x_min, x_max],
         ticksuffix="%",
     )
     fig.update_yaxes(title="")
-    apply_plot_style(fig, 245)
+    apply_plot_style(fig, 255)
     st.plotly_chart(fig, use_container_width=True)
+
+    hsr_band = match_variability_band(row["training_hsr_m"], match_ref, "hsr")
+    sprint_band = match_variability_band(row["training_sprint_m"], match_ref, "sprint")
+
+    example_html = ""
+    if repeated_example is not None:
+        example_html = f"""
+        <div class="mr-report-note">
+            <b style="color:{TEXT};">REAL SAME-PLAYER EXAMPLE</b> ·
+            {repeated_example['player_name']} · {int(repeated_example['n_matches'])} eligible matches ·
+            HSR {repeated_example['hsr_p90_min']:.0f}–{repeated_example['hsr_p90_max']:.0f} m/90 ·
+            Sprint {repeated_example['sprint_p90_min']:.0f}–{repeated_example['sprint_p90_max']:.0f} m/90.
+            This illustrates how the same player's physical demand can change from fixture to fixture.
+        </div>
+        """
 
     render_html(
         f"""
         <div class="mr-report-insight" style="border-left-color:{ACCENT};">
-            <div class="mr-insight-title">READ IT IN ONE LINE</div>
-            <b>High-speed running above the role median · Sprint below the role median.</b>
-            The player accumulated running at speed, but comparatively little true sprint exposure.
+            <div class="mr-insight-title">WHAT THE VARIABILITY ADDS</div>
+            This training week sits <b>{hsr_band}</b> for HSR and <b>{sprint_band}</b> for sprint
+            when compared with real {position_full.lower()} match performances.
+            A single positional average would hide this spread.
         </div>
+        {example_html}
         <div class="mr-report-note">
-            SkillCorner Open Data · A-League 2024/25 · {int(real_ref['n_players'])} eligible {position_full.lower()}
-            player-position samples · {int(real_ref['total_matches'])} matches represented.
-            Synthetic training/wellness data · descriptive decision-support only · not a medical or injury-risk model.
+            Real sample: {int(match_ref['n_performances'])} eligible {position_full.lower()} performances ·
+            {int(match_ref['n_players'])} players · {int(match_ref['n_matches'])} matches.
+            SkillCorner Open Data · A-League 2024/25. Match volumes are normalised to 90 minutes.
+            Synthetic training/wellness data remain separate. The 10-match sample is contextual, not a league-wide target.
         </div>
         """
     )
