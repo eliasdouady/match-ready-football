@@ -106,7 +106,7 @@ The index is an interface aid for this synthetic portfolio project. It is **not*
 
 The compact Performance Report now compares the synthetic pre-match training week with **real match-to-match distributions** derived from the SkillCorner tracking sample.
 
-For HSR and sprint distance, the dashboard shows the real match median together with the middle 50% and wider P10–P90 range. It also surfaces a repeated-player example to demonstrate that the same player's physical demand can change materially from one fixture to another.
+For HSR and sprint distance, the dashboard shows the real match median together with the middle 50% and wider P10–P90 range. It also summarises same-player fixture variability and surfaces a repeated-player example to demonstrate that the same player's physical demand can change materially from one fixture to another.
 
 These are contextual benchmarks, not prescribed training targets. A full training week and a single match are different exposure windows; the comparison is used to inspect the stimulus mix and the range of real match demands.
 
