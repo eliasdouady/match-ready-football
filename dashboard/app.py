@@ -1000,7 +1000,7 @@ if page == "Performance Report":
 
     report_section_header(
         "Real match variability",
-        f"{position_full} · SkillCorner Open Data · 10 A-League tracking matches · volumes normalised to 90 min",
+        f"How much physical demand changes from match to match · {position_full} · 10 SkillCorner A-League tracking matches",
     )
 
     mv_hsr_p10 = float(match_ref["hsr_p10"])
@@ -1021,16 +1021,16 @@ if page == "Performance Report":
     mv1, mv2 = st.columns(2)
     with mv1:
         report_kpi_card(
-            "REAL MATCH HSR · MEDIAN",
+            "REAL MATCH HIGH-SPEED RUNNING",
             f"{mv_hsr_p50:.0f} m / 90",
-            f"middle 50%: {mv_hsr_p25:.0f}–{mv_hsr_p75:.0f} m · training week: {row['training_hsr_m']:.0f} m",
+            f"median · middle 50%: {mv_hsr_p25:.0f}–{mv_hsr_p75:.0f} m · training week: {row['training_hsr_m']:.0f} m",
             ACCENT,
         )
     with mv2:
         report_kpi_card(
-            "REAL MATCH SPRINT · MEDIAN",
+            "REAL MATCH SPRINT DISTANCE",
             f"{mv_sprint_p50:.0f} m / 90",
-            f"middle 50%: {mv_sprint_p25:.0f}–{mv_sprint_p75:.0f} m · training week: {row['training_sprint_m']:.0f} m",
+            f"median · middle 50%: {mv_sprint_p25:.0f}–{mv_sprint_p75:.0f} m · training week: {row['training_sprint_m']:.0f} m",
             ACCENT,
         )
 
@@ -1113,7 +1113,7 @@ if page == "Performance Report":
         annotation_position="top",
     )
     fig.update_layout(
-        title="Training week vs the real match-to-match range",
+        title="Training-week accumulation vs single-match demand range",
         showlegend=False,
     )
     fig.update_xaxes(
@@ -1124,28 +1124,37 @@ if page == "Performance Report":
     fig.update_yaxes(title="")
     apply_plot_style(fig, 255)
     st.plotly_chart(fig, use_container_width=True)
+    st.caption(
+        "Diamond = this training week · green dot = real match median · lighter band = middle 50% of matches · darker band = wider P10–P90 range."
+    )
 
     if repeated_player_count:
+        rv1, rv2 = st.columns(2)
+        with rv1:
+            report_kpi_card(
+                "SAME-PLAYER HIGH-SPEED VARIATION",
+                f"~{repeated_hsr_cv_median:.0f}%",
+                "typical match-to-match variation",
+                READY,
+            )
+        with rv2:
+            report_kpi_card(
+                "SAME-PLAYER SPRINT VARIATION",
+                f"~{repeated_sprint_cv_median:.0f}%",
+                "typical match-to-match variation",
+                MONITOR,
+            )
+
         render_html(
             f"""
-            <div class="mr-context-strip">
-                <div class="mr-context-chip">
-                    <div class="mr-context-chip-label">SAME-PLAYER HSR VARIATION</div>
-                    <div class="mr-context-chip-value">~{repeated_hsr_cv_median:.0f}% median CV</div>
-                </div>
-                <div class="mr-context-chip">
-                    <div class="mr-context-chip-label">SAME-PLAYER SPRINT VARIATION</div>
-                    <div class="mr-context-chip-value">~{repeated_sprint_cv_median:.0f}% median CV</div>
-                </div>
-                <div class="mr-context-chip">
-                    <div class="mr-context-chip-label">REPEATED PLAYERS</div>
-                    <div class="mr-context-chip-value">{repeated_player_count} players · ≥2 matches</div>
-                </div>
+            <div class="mr-staff-check" style="margin-top:7px;">
+                <b>Key message:</b> For the same {position_full.lower()} players, sprint demand changes much more
+                from fixture to fixture than high-speed running. One positional average is therefore an anchor,
+                not a fixed expectation for every match.
             </div>
-            <div class="mr-staff-check">
-                <b>Fixture variability:</b> In this open sample, sprint output varies more from match to match
-                than HSR for the same {position_full.lower()} players. A single positional average is therefore
-                a useful anchor, not a complete expectation for every fixture.
+            <div class="mr-report-note">
+                Variability summary based on {repeated_player_count} real {position_full.lower()} players observed
+                in ≥2 eligible matches. “Typical variation” = median within-player coefficient of variation (CV).
             </div>
             """
         )
