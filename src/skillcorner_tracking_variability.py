@@ -41,7 +41,9 @@ def match_metadata(match_path: Path):
         if not mapped or minutes is None:
             continue
 
-        players[int(p["trackable_object"])] = {
+        # The current open tracking schema exposes SkillCorner player_id
+        # directly in each frame, so key the lookup by the player entity id.
+        players[int(p["id"])] = {
             "player_id": int(p["id"]),
             "player_name": p.get("short_name") or f"{p.get('first_name', '')} {p.get('last_name', '')}".strip(),
             "team_id": int(p["team_id"]),
