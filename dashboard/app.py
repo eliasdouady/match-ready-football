@@ -1129,26 +1129,32 @@ if page == "Performance Report":
     )
 
     if repeated_player_count:
+        rv1, rv2 = st.columns(2)
+        with rv1:
+            report_kpi_card(
+                "SAME-PLAYER HIGH-SPEED VARIATION",
+                f"~{repeated_hsr_cv_median:.0f}%",
+                "typical match-to-match variation",
+                READY,
+            )
+        with rv2:
+            report_kpi_card(
+                "SAME-PLAYER SPRINT VARIATION",
+                f"~{repeated_sprint_cv_median:.0f}%",
+                "typical match-to-match variation",
+                MONITOR,
+            )
+
         render_html(
             f"""
-            <div class="mr-context-strip">
-                <div class="mr-context-chip">
-                    <div class="mr-context-chip-label">SAME-PLAYER HIGH-SPEED VARIATION</div>
-                    <div class="mr-context-chip-value">~{repeated_hsr_cv_median:.0f}% typical variation</div>
-                </div>
-                <div class="mr-context-chip">
-                    <div class="mr-context-chip-label">SAME-PLAYER SPRINT VARIATION</div>
-                    <div class="mr-context-chip-value">~{repeated_sprint_cv_median:.0f}% typical variation</div>
-                </div>
-                <div class="mr-context-chip">
-                    <div class="mr-context-chip-label">REPEATED-PLAYER SAMPLE</div>
-                    <div class="mr-context-chip-value">{repeated_player_count} players seen in ≥2 matches</div>
-                </div>
+            <div class="mr-staff-check" style="margin-top:7px;">
+                <b>Key message:</b> For the same {position_full.lower()} players, sprint demand changes much more
+                from fixture to fixture than high-speed running. One positional average is therefore an anchor,
+                not a fixed expectation for every match.
             </div>
-            <div class="mr-staff-check">
-                <b>Key message:</b> In this open sample, sprint output changes much more from fixture to fixture
-                than high-speed running for the same {position_full.lower()} players. The positional median is
-                therefore a useful reference — not a fixed target for every match.
+            <div class="mr-report-note">
+                Variability summary based on {repeated_player_count} real {position_full.lower()} players observed
+                in ≥2 eligible matches. “Typical variation” = median within-player coefficient of variation (CV).
             </div>
             """
         )
