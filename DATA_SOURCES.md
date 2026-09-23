@@ -8,10 +8,12 @@ Match Ready? uses a real external reference from the
 - Competition: Australian A-League
 - Season: 2024/2025
 - Provider: SkillCorner
-- Upstream file: `data/aggregates/aus1league_physicalaggregates_20242025.csv`
+- Season aggregate: `data/aggregates/aus1league_physicalaggregates_20242025.csv`
+- Match variability: 10-match open broadcast-tracking sample at 10 Hz
 
-SkillCorner describes these files as season-level player aggregates and states
-that aggregate datasets are filtered to performances above 60 minutes.
+SkillCorner describes the aggregate files as season-level player aggregates and
+states that aggregate datasets are filtered to performances above 60 minutes.
+The tracking layer is processed separately into player-match physical metrics.
 
 ## Match Ready? processing
 
@@ -45,7 +47,12 @@ The external match-demand reference is real.
 The positional distributions are contextual references, not training targets,
 medical thresholds or injury-risk estimates.
 
-Because these are season-level player-position aggregates, they capture
-between-player positional variation but not the complete fixture-to-fixture
-distribution of a single player. The open tracking matches are the next layer
-for future work.
+The season-level aggregate layer captures broad between-player positional
+variation. A second layer now derives HSR and sprint distributions directly
+from the 10-match open tracking sample, including repeated-player examples when
+the same player has multiple eligible performances.
+
+That tracking sample demonstrates match-to-match variability, but it is still a
+small sample and should not be interpreted as the full A-League distribution.
+See `MATCH_VARIABILITY.md` for the speed thresholds, smoothing, eligibility and
+normalisation choices used to create the derived match tables.
