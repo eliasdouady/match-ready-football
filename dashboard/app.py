@@ -179,6 +179,26 @@ render_html(
         color:{MUTED}; font-size:9.5px; line-height:1.45;
         margin-top:8px; padding-top:9px; border-top:1px solid {GRID};
     }}
+    .mr-context-strip {{
+        display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;
+        margin:8px 0 10px 0;
+    }}
+    .mr-context-chip {{
+        background:{PANEL}; border:1px solid {GRID}; border-radius:9px;
+        padding:8px 10px;
+    }}
+    .mr-context-chip-label {{
+        color:{MUTED}; font-size:8px; font-weight:800; letter-spacing:.08em;
+        margin-bottom:3px;
+    }}
+    .mr-context-chip-value {{
+        color:{TEXT}; font-size:11px; font-weight:700; line-height:1.25;
+    }}
+    .mr-staff-check {{
+        color:{MUTED}; font-size:10.5px; line-height:1.45;
+        margin:-2px 0 12px 0;
+    }}
+    .mr-staff-check b {{ color:{TEXT}; }}
 
     .mr-role-card {{
         background:linear-gradient(145deg, {PANEL_ALT}, {PANEL});
@@ -580,6 +600,43 @@ def position_report_profile(position):
     )
 
 
+def report_context(row):
+    """Return compact, staff-facing context for the selected week."""
+    wellness_delta = float(row.get("wellness_delta", 0))
+    if wellness_delta <= -1:
+        wellness = f"{abs(wellness_delta):.0f} pts below usual"
+    elif wellness_delta >= 1:
+        wellness = f"{wellness_delta:.0f} pts above usual"
+    else:
+        wellness = "close to usual"
+
+    if bool(row.get("planned_reduction", False)):
+        staff_check = (
+            "Planned reduction: confirm the exposure progression remains consistent "
+            "with the return-to-performance plan."
+        )
+    elif row["monitoring_status"] == "Underexposed":
+        staff_check = (
+            "Was the lower speed exposure planned? If not, review where sprint / near-max-speed "
+            "work was missed across the pre-match microcycle."
+        )
+    elif row["monitoring_status"] == "Monitor" and row["load_vs_baseline"] > 1.20:
+        staff_check = "Review cumulative load together with recovery and session-content context."
+    elif row["monitoring_status"] == "Monitor" and wellness_delta <= -8:
+        staff_check = "Compare the external load with wellness and recovery context before interpreting the flag."
+    elif row["monitoring_status"] == "Monitor":
+        staff_check = "Review the flagged metric alongside the session plan and upcoming match demands."
+    else:
+        staff_check = "No current flag; keep the preparation profile in context with the session and match plan."
+
+    return {
+        "training_plan": str(row.get("training_context", "Training")),
+        "speed_recency": format_days(row.get("days_since_90_pct_vmax")),
+        "wellness": wellness,
+        "staff_check": staff_check,
+    }
+
+
 def priority_rank(df):
     ranked = df.copy()
     status_rank = {"Underexposed": 0, "Monitor": 1, "Ready": 3}
@@ -689,6 +746,7 @@ if page == "Performance Report":
     position_full = POSITION_LABELS.get(row["position"], row["position"])
     status_color = STATUS_COLORS.get(row["monitoring_status"], ACCENT)
     role_profile = position_report_profile(row["position"])
+    report_ctx = report_context(row)
 
     real_ref = real_benchmarks[real_benchmarks["position"] == row["position"]]
     if real_ref.empty:
@@ -708,7 +766,7 @@ if page == "Performance Report":
     with header_left:
         render_html(
             f"""
-            <div style="padding:28px 0 9px 0;">
+            <div style="padding:48px 0 9px 0;">
                 <div style="color:{MUTED};font-size:9px;font-weight:800;letter-spacing:.14em;">
                     MATCH READY? · PERFORMANCE REPORT
                 </div>
@@ -726,7 +784,7 @@ if page == "Performance Report":
     with header_right:
         render_html(
             f"""
-            <div style="padding-top:28px;">
+            <div style="padding-top:48px;">
                 <div class="mr-role-card">
                     <div class="mr-role-copy">
                         <div class="mr-role-eyebrow">POSITION PROFILE</div>
@@ -779,9 +837,10 @@ if page == "Performance Report":
     if row["monitoring_status"] == "Underexposed" and not bool(row["planned_reduction"]):
         headline = "SAME LOAD. DIFFERENT STIMULUS."
         summary = (
-            f"Overall work reached {row['load_vs_baseline'] * 100:.0f}% of usual, "
-            f"but sprint exposure fell to {row['sprint_vs_baseline'] * 100:.0f}% and high-speed running "
-            f"to {row['hsr_vs_baseline'] * 100:.0f}%. The week was not light — it was less speed-specific."
+            f"The player did enough work overall ({row['load_vs_baseline'] * 100:.0f}% of usual), "
+            f"but much less of it was speed-specific: sprint exposure fell to "
+            f"{row['sprint_vs_baseline'] * 100:.0f}% and high-speed running to "
+            f"{row['hsr_vs_baseline'] * 100:.0f}% of usual."
         )
     elif bool(row["planned_reduction"]):
         headline = "LOWER EXPOSURE, BUT PLANNED."
@@ -802,6 +861,21 @@ if page == "Performance Report":
             <div class="mr-insight-title">{headline}</div>
             <div style="font-size:14.5px;line-height:1.45;">{summary}</div>
         </div>
+        <div class="mr-context-strip">
+            <div class="mr-context-chip">
+                <div class="mr-context-chip-label">TRAINING PLAN</div>
+                <div class="mr-context-chip-value">{report_ctx['training_plan']}</div>
+            </div>
+            <div class="mr-context-chip">
+                <div class="mr-context-chip-label">LAST &gt;90% VMAX</div>
+                <div class="mr-context-chip-value">{report_ctx['speed_recency']}</div>
+            </div>
+            <div class="mr-context-chip">
+                <div class="mr-context-chip-label">WELLNESS</div>
+                <div class="mr-context-chip-value">{report_ctx['wellness']}</div>
+            </div>
+        </div>
+        <div class="mr-staff-check"><b>Staff check:</b> {report_ctx['staff_check']}</div>
         """
     )
 
@@ -1634,6 +1708,7 @@ elif page == "Exposure Map":
             "Monitoring status",
             options=["Ready", "Monitor", "Underexposed"],
             default=["Ready", "Monitor", "Underexposed"],
+            format_func=lambda x: STATUS_LABELS.get(x, x),
         )
 
     map_df = week_df[
@@ -1645,30 +1720,35 @@ elif page == "Exposure Map":
         st.info("No players match the selected filters.")
         st.stop()
 
-    map_df["Sprint Exposure (%)"] = map_df["sprint_vs_baseline"] * 100
-    map_df["HSR Exposure (%)"] = map_df["hsr_vs_baseline"] * 100
+    map_df["Sprint exposure vs usual (%)"] = map_df["sprint_vs_baseline"] * 100
+    map_df["High-speed running vs usual (%)"] = map_df["hsr_vs_baseline"] * 100
+    map_df["Status"] = map_df["monitoring_status"].map(STATUS_LABELS).fillna(map_df["monitoring_status"])
+    map_df["Position"] = map_df["position"].map(POSITION_LABELS).fillna(map_df["position"])
+
+    display_status_colors = {
+        STATUS_LABELS["Ready"]: READY,
+        STATUS_LABELS["Monitor"]: MONITOR,
+        STATUS_LABELS["Underexposed"]: UNDER,
+    }
 
     fig = px.scatter(
         map_df,
-        x="Sprint Exposure (%)",
-        y="HSR Exposure (%)",
-        color="monitoring_status",
-        symbol="position",
-        size="preparation_alignment",
-        size_max=18,
+        x="Sprint exposure vs usual (%)",
+        y="High-speed running vs usual (%)",
+        color="Status",
         hover_name="player_name",
         hover_data={
-            "position": True,
-            "monitoring_status": True,
+            "Position": True,
             "training_context": True,
             "peak_training_pct_vmax": ":.1f",
-            "preparation_alignment": ":.0f",
-            "Sprint Exposure (%)": ":.0f",
-            "HSR Exposure (%)": ":.0f",
+            "Sprint exposure vs usual (%)": ":.0f",
+            "High-speed running vs usual (%)": ":.0f",
+            "monitoring_status": False,
+            "position": False,
         },
-        color_discrete_map=STATUS_COLORS,
+        color_discrete_map=display_status_colors,
     )
-    fig.update_traces(marker=dict(line=dict(color=BG, width=1.4), opacity=0.95))
+    fig.update_traces(marker=dict(size=12, line=dict(color=BG, width=1.4), opacity=0.95))
     fig.add_vrect(x0=0, x1=60, fillcolor=UNDER, opacity=0.045, line_width=0, layer="below")
     fig.add_hrect(y0=0, y1=60, fillcolor=UNDER, opacity=0.045, line_width=0, layer="below")
     fig.add_vline(x=100, line_dash="dash", line_color=WHITE, opacity=0.38)
@@ -1677,8 +1757,8 @@ elif page == "Exposure Map":
     labels = map_df[map_df["monitoring_status"] != "Ready"]
     for _, p in labels.iterrows():
         fig.add_annotation(
-            x=p["Sprint Exposure (%)"],
-            y=p["HSR Exposure (%)"],
+            x=p["Sprint exposure vs usual (%)"],
+            y=p["High-speed running vs usual (%)"],
             text=p["player_id"],
             showarrow=False,
             xshift=8,
@@ -1688,14 +1768,14 @@ elif page == "Exposure Map":
 
     fig.update_xaxes(
         range=[
-            max(20, map_df["Sprint Exposure (%)"].min() - 15),
-            max(130, map_df["Sprint Exposure (%)"].max() + 15),
+            max(20, map_df["Sprint exposure vs usual (%)"].min() - 15),
+            max(130, map_df["Sprint exposure vs usual (%)"].max() + 15),
         ]
     )
     fig.update_yaxes(
         range=[
-            max(20, map_df["HSR Exposure (%)"].min() - 15),
-            max(130, map_df["HSR Exposure (%)"].max() + 15),
+            max(20, map_df["High-speed running vs usual (%)"].min() - 15),
+            max(130, map_df["High-speed running vs usual (%)"].max() + 15),
         ]
     )
     fig.update_layout(legend_title_text="")
@@ -1703,8 +1783,8 @@ elif page == "Exposure Map":
     st.plotly_chart(fig, use_container_width=True)
 
     st.caption(
-        "100% = player's individual baseline. The shaded area is a visual monitoring context only, "
-        "not a medical-risk zone. Bubble size reflects the preparation-alignment index."
+        "100% = the player's usual preparation level. Colour shows monitoring status; position and training context are available on hover. "
+        "The shaded area is a visual monitoring aid, not a medical-risk zone."
     )
 
     section_header("Flag Context", "The same numerical flag can mean different things depending on the training plan")
@@ -1719,13 +1799,13 @@ elif page == "Exposure Map":
             render_html(
                 f"""
                 <div class="mr-panel" style="border-left:3px solid {color};">
-                    <b>{p['player_name']} · {p['position']}</b>
+                    <b>{p['player_name']} · {POSITION_LABELS.get(p['position'], p['position'])}</b>
                     &nbsp; {status_badge(p['monitoring_status'])}
                     &nbsp; {context_badge(plan_label)}
                     <br><br>
                     <span style="color:{MUTED};font-size:11px;">
-                        Sprint {p['sprint_vs_baseline']*100:.0f}% · HSR {p['hsr_vs_baseline']*100:.0f}% ·
-                        Peak {p['peak_training_pct_vmax']:.0f}% Vmax · Alignment {p['preparation_alignment']:.0f}/100
+                        Sprint {p['sprint_vs_baseline']*100:.0f}% of usual · High-speed running {p['hsr_vs_baseline']*100:.0f}% of usual ·
+                        Peak speed {p['peak_training_pct_vmax']:.0f}% Vmax
                     </span>
                     <br><br>{p['monitoring_reasons']}
                 </div>
@@ -1811,9 +1891,9 @@ elif page == "Methodology":
     section_header("Monitoring Rules", "Portfolio heuristics chosen for interpretability, not clinical cut-offs")
     render_html(
         f"""
-        <div class="mr-rule"><b style="color:{UNDER};">UNDEREXPOSED</b> · sprint &lt;60% baseline, HSR &lt;60% baseline, or weekly peak speed &lt;85% Vmax.</div>
-        <div class="mr-rule"><b style="color:{MONITOR};">MONITOR</b> · moderate sprint / HSR reduction, elevated or reduced overall load, materially lower wellness, or limited recent &gt;90% Vmax exposure.</div>
-        <div class="mr-rule"><b style="color:{READY};">READY</b> · no current rule is triggered. This means exposure is broadly aligned with the synthetic individual baseline; it is not a medical clearance.</div>
+        <div class="mr-rule"><b style="color:{UNDER};">LOW SPEED EXPOSURE</b> · sprint &lt;60% baseline, high-speed running &lt;60% baseline, or weekly peak speed &lt;85% Vmax.</div>
+        <div class="mr-rule"><b style="color:{MONITOR};">REVIEW</b> · moderate speed-exposure reduction, elevated or reduced overall load, materially lower wellness, or limited recent &gt;90% Vmax exposure.</div>
+        <div class="mr-rule"><b style="color:{READY};">ALIGNED</b> · no current rule is triggered. Exposure is broadly aligned with the synthetic individual baseline; this is not a medical clearance.</div>
         """
     )
 
@@ -1824,7 +1904,7 @@ elif page == "Methodology":
             f"""
             <div class="mr-priority" style="border-top:3px solid {UNDER};">
                 <div class="mr-priority-label">P18 · WINGER</div>
-                <div class="mr-priority-name">Unexpected speed underexposure</div>
+                <div class="mr-priority-name">Unexpected speed-exposure drop</div>
                 <div class="mr-priority-reason">General training volume remains present while sprint and near-max-speed exposure fall sharply.</div>
             </div>
             """
