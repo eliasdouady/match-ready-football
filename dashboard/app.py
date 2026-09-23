@@ -218,15 +218,19 @@ render_html(
     }}
     .mr-box-left {{ left:-1px; border-left:none; }}
     .mr-box-right {{ right:-1px; border-right:none; }}
-    .mr-wing-lane {{
-        position:absolute; right:0; top:0; bottom:0; width:28%;
-        background:linear-gradient(90deg, transparent, rgba(110,168,254,.17));
-        border-left:1px solid rgba(110,168,254,.26);
+    .mr-role-zone {{
+        position:absolute; border:1px solid rgba(110,168,254,.34);
+        background:rgba(110,168,254,.13); border-radius:3px;
     }}
     .mr-role-dot {{
         position:absolute; width:10px; height:10px; border-radius:50%;
-        right:13px; top:13px; background:{ACCENT};
-        border:2px solid {BG}; box-shadow:0 0 0 1px {ACCENT}88;
+        background:{ACCENT}; border:2px solid {BG};
+        box-shadow:0 0 0 1px {ACCENT}88;
+        transform:translate(-50%,-50%);
+    }}
+    .mr-pitch-direction {{
+        position:absolute; right:5px; bottom:3px; color:rgba(243,246,248,.48);
+        font-size:7px; font-weight:800; letter-spacing:.08em;
     }}
     .mr-role-tag {{
         display:inline-block; margin-top:7px; padding:3px 7px; border-radius:999px;
@@ -525,6 +529,57 @@ def plain_language_takeaway(row):
     )
 
 
+def position_report_profile(position):
+    """Football-facing role context for the compact performance report."""
+    profiles = {
+        "CB": {
+            "name": "Centre Back",
+            "focus": "Defensive coverage · build-up support · repeated accelerations",
+            "tag": "DEFENSIVE LOAD PROFILE",
+            "zone": "left:8%;top:24%;width:28%;height:52%;",
+            "dot": "left:24%;top:50%;",
+        },
+        "FB": {
+            "name": "Full Back",
+            "focus": "Wide transitions · repeated high-speed runs · recovery actions",
+            "tag": "REPEATED SPEED PROFILE",
+            "zone": "left:18%;top:4%;width:40%;height:24%;",
+            "dot": "left:40%;top:16%;",
+        },
+        "CM": {
+            "name": "Central Midfielder",
+            "focus": "High running volume · support actions · repeated transitions",
+            "tag": "VOLUME + HSR PROFILE",
+            "zone": "left:34%;top:24%;width:32%;height:52%;",
+            "dot": "left:50%;top:50%;",
+        },
+        "W": {
+            "name": "Winger",
+            "focus": "Wide high-speed actions · sprint exposure · depth runs",
+            "tag": "SPEED EXPOSURE PROFILE",
+            "zone": "left:58%;top:4%;width:38%;height:24%;",
+            "dot": "left:78%;top:16%;",
+        },
+        "ST": {
+            "name": "Striker",
+            "focus": "Explosive depth runs · high-speed efforts · sprint exposure",
+            "tag": "EXPLOSIVE RUN PROFILE",
+            "zone": "left:70%;top:24%;width:26%;height:52%;",
+            "dot": "left:84%;top:50%;",
+        },
+    }
+    return profiles.get(
+        position,
+        {
+            "name": POSITION_LABELS.get(position, position),
+            "focus": "Individual physical preparation profile",
+            "tag": "PLAYER LOAD PROFILE",
+            "zone": "left:40%;top:25%;width:20%;height:50%;",
+            "dot": "left:50%;top:50%;",
+        },
+    )
+
+
 def priority_rank(df):
     ranked = df.copy()
     status_rank = {"Underexposed": 0, "Monitor": 1, "Ready": 3}
@@ -576,7 +631,8 @@ selected_week = st.sidebar.selectbox(
 )
 
 player_options = players[["player_id", "player_name", "position"]].copy()
-player_options["label"] = player_options["player_name"] + " · " + player_options["position"]
+player_options["position_label"] = player_options["position"].map(POSITION_LABELS).fillna(player_options["position"])
+player_options["label"] = player_options["player_name"] + " · " + player_options["position_label"]
 player_ids = player_options["player_id"].tolist()
 default_player_index = player_ids.index(STORY_PLAYER) if STORY_PLAYER in player_ids else 0
 
@@ -632,6 +688,7 @@ if page == "Performance Report":
     row = player_week.iloc[0]
     position_full = POSITION_LABELS.get(row["position"], row["position"])
     status_color = STATUS_COLORS.get(row["monitoring_status"], ACCENT)
+    role_profile = position_report_profile(row["position"])
 
     real_ref = real_benchmarks[real_benchmarks["position"] == row["position"]]
     if real_ref.empty:
@@ -673,15 +730,16 @@ if page == "Performance Report":
                 <div class="mr-role-card">
                     <div class="mr-role-copy">
                         <div class="mr-role-eyebrow">POSITION PROFILE</div>
-                        <div class="mr-role-name">{position_full}</div>
-                        <div class="mr-role-sub">Wide-channel role with repeated high-speed and sprint demands.</div>
-                        <div class="mr-role-tag">SPEED EXPOSURE PROFILE</div>
+                        <div class="mr-role-name">{role_profile['name']}</div>
+                        <div class="mr-role-sub">{role_profile['focus']}</div>
+                        <div class="mr-role-tag">{role_profile['tag']}</div>
                     </div>
-                    <div class="mr-pitch" aria-label="Football pitch showing winger zone">
+                    <div class="mr-pitch" aria-label="Football pitch showing representative {role_profile['name']} zone">
                         <div class="mr-box-left"></div>
                         <div class="mr-box-right"></div>
-                        <div class="mr-wing-lane"></div>
-                        <div class="mr-role-dot"></div>
+                        <div class="mr-role-zone" style="{role_profile['zone']}"></div>
+                        <div class="mr-role-dot" style="{role_profile['dot']}"></div>
+                        <div class="mr-pitch-direction">ATTACK →</div>
                     </div>
                 </div>
             </div>
