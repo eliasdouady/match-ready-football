@@ -180,6 +180,60 @@ render_html(
         margin-top:8px; padding-top:9px; border-top:1px solid {GRID};
     }}
 
+    .mr-role-card {{
+        background:linear-gradient(145deg, {PANEL_ALT}, {PANEL});
+        border:1px solid {GRID}; border-radius:13px;
+        padding:11px 13px; min-height:118px;
+        display:flex; gap:13px; align-items:center;
+    }}
+    .mr-role-copy {{ min-width:126px; }}
+    .mr-role-eyebrow {{
+        color:{MUTED}; font-size:8.5px; letter-spacing:.11em;
+        font-weight:800; margin-bottom:5px;
+    }}
+    .mr-role-name {{
+        color:{TEXT}; font-size:16px; font-weight:800; line-height:1.1;
+    }}
+    .mr-role-sub {{
+        color:{MUTED}; font-size:9.5px; line-height:1.35; margin-top:6px;
+    }}
+    .mr-pitch {{
+        position:relative; width:145px; height:82px; flex:0 0 145px;
+        border:1px solid rgba(243,246,248,.44); border-radius:4px;
+        background:linear-gradient(90deg, rgba(73,214,160,.035), rgba(110,168,254,.055));
+        overflow:hidden;
+    }}
+    .mr-pitch:before {{
+        content:""; position:absolute; left:50%; top:0; bottom:0;
+        width:1px; background:rgba(243,246,248,.38);
+    }}
+    .mr-pitch:after {{
+        content:""; position:absolute; width:28px; height:28px;
+        border:1px solid rgba(243,246,248,.38); border-radius:50%;
+        left:50%; top:50%; transform:translate(-50%,-50%);
+    }}
+    .mr-box-left, .mr-box-right {{
+        position:absolute; width:24px; height:44px; top:18px;
+        border:1px solid rgba(243,246,248,.30);
+    }}
+    .mr-box-left {{ left:-1px; border-left:none; }}
+    .mr-box-right {{ right:-1px; border-right:none; }}
+    .mr-wing-lane {{
+        position:absolute; right:0; top:0; bottom:0; width:28%;
+        background:linear-gradient(90deg, transparent, rgba(110,168,254,.17));
+        border-left:1px solid rgba(110,168,254,.26);
+    }}
+    .mr-role-dot {{
+        position:absolute; width:10px; height:10px; border-radius:50%;
+        right:13px; top:13px; background:{ACCENT};
+        border:2px solid {BG}; box-shadow:0 0 0 1px {ACCENT}88;
+    }}
+    .mr-role-tag {{
+        display:inline-block; margin-top:7px; padding:3px 7px; border-radius:999px;
+        color:{ACCENT}; background:{ACCENT}14; border:1px solid {ACCENT}44;
+        font-size:8px; font-weight:800; letter-spacing:.07em;
+    }}
+
     .mr-section-title {{
         color:{TEXT}; font-size:20px; font-weight:750; margin-top:16px; margin-bottom:3px;
     }}
@@ -592,22 +646,47 @@ if page == "Performance Report":
     real_sprint_p50 = real_ref["sprint_p50_m"]
     real_sprint_p90 = real_ref["sprint_p90_m"]
 
-    render_html(
-        f"""
-        <div style="padding:28px 0 9px 0;">
-            <div style="color:{MUTED};font-size:9px;font-weight:800;letter-spacing:.14em;">
-                MATCH READY? · PERFORMANCE REPORT
-            </div>
-            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-top:5px;">
-                <div>
-                    <div class="mr-report-title">{row['player_name']} · {position_full}</div>
-                    <div class="mr-report-meta">Week {selected_week} · pre-match preparation</div>
+    header_left, header_right = st.columns([1.55, 0.65], gap="medium")
+
+    with header_left:
+        render_html(
+            f"""
+            <div style="padding:28px 0 9px 0;">
+                <div style="color:{MUTED};font-size:9px;font-weight:800;letter-spacing:.14em;">
+                    MATCH READY? · PERFORMANCE REPORT
                 </div>
-                <div>{status_badge(row['monitoring_status'])}</div>
+                <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-top:5px;">
+                    <div>
+                        <div class="mr-report-title">{row['player_name']} · {position_full}</div>
+                        <div class="mr-report-meta">Week {selected_week} · pre-match preparation</div>
+                    </div>
+                    <div>{status_badge(row['monitoring_status'])}</div>
+                </div>
             </div>
-        </div>
-        """
-    )
+            """
+        )
+
+    with header_right:
+        render_html(
+            f"""
+            <div style="padding-top:28px;">
+                <div class="mr-role-card">
+                    <div class="mr-role-copy">
+                        <div class="mr-role-eyebrow">POSITION PROFILE</div>
+                        <div class="mr-role-name">{position_full}</div>
+                        <div class="mr-role-sub">Wide-channel role with repeated high-speed and sprint demands.</div>
+                        <div class="mr-role-tag">SPEED EXPOSURE PROFILE</div>
+                    </div>
+                    <div class="mr-pitch" aria-label="Football pitch showing winger zone">
+                        <div class="mr-box-left"></div>
+                        <div class="mr-box-right"></div>
+                        <div class="mr-wing-lane"></div>
+                        <div class="mr-role-dot"></div>
+                    </div>
+                </div>
+            </div>
+            """
+        )
 
     k1, k2, k3, k4 = st.columns(4)
     with k1:
@@ -670,7 +749,7 @@ if page == "Performance Report":
 
     report_section_header(
         "Preparation profile",
-        "Current week vs the player's usual pre-match profile · 100% = individual baseline",
+        "Training week vs personal baseline · 100% = the player's usual pre-match exposure",
     )
 
     report_profile = pd.DataFrame(
@@ -724,7 +803,7 @@ if page == "Performance Report":
 
     report_section_header(
         "Real match context",
-        "SkillCorner Open Data · A-League 2024/25",
+        f"{position_full} reference · SkillCorner Open Data · A-League 2024/25",
     )
 
     hsr_ratio = row["training_hsr_m"] / real_hsr_p50
@@ -823,8 +902,8 @@ if page == "Performance Report":
         f"""
         <div class="mr-report-insight" style="border-left-color:{ACCENT};">
             <div class="mr-insight-title">READ IT IN ONE LINE</div>
-            <b>HSR above the role median · Sprint below the role median.</b>
-            The week contains plenty of high-speed running, but comparatively less sprinting.
+            <b>High-speed running above the role median · Sprint below the role median.</b>
+            The player accumulated running at speed, but comparatively little true sprint exposure.
         </div>
         <div class="mr-report-note">
             SkillCorner Open Data · A-League 2024/25 · {int(real_ref['n_players'])} eligible {position_full.lower()}
